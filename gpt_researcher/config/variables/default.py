@@ -1,19 +1,17 @@
 from .base import BaseConfig
 
 DEFAULT_CONFIG: BaseConfig = {
-    # "RETRIEVER": "tavily",
-    "RETRIEVER": "duckduckgo",
-
-    "EMBEDDING": "openai:text-embedding-3-small",
+    "RETRIEVER": "tavily",
+    # "RETRIEVER": "duckduckgo",
+    # "EMBEDDING": "openai:text-embedding-3-small",
+    "EMBEDDING": "custom:Pro/BAAI/bge-m3",
     "SIMILARITY_THRESHOLD": 0.42,
-
     # "FAST_LLM": "openai:gpt-4o-mini",
     # "SMART_LLM": "openai:gpt-4.1",  # Has support for long responses (2k+ words).
     # "STRATEGIC_LLM": "openai:o4-mini",  # Can be used with o1 or o3, please note it will make tasks slower.
     "FAST_LLM": "deepseek:deepseek-v4-flash",
     "SMART_LLM": "deepseek:deepseek-v4-flash",  # Has support for long responses (2k+ words).
     "STRATEGIC_LLM": "deepseek:deepseek-v4-pro",  # Can be used with o1 or o3, please note it will make tasks slower.
-
     "FAST_TOKEN_LIMIT": 3000,
     "SMART_TOKEN_LIMIT": 6000,
     "STRATEGIC_TOKEN_LIMIT": 4000,
@@ -37,20 +35,18 @@ DEFAULT_CONFIG: BaseConfig = {
     "DOC_PATH": "./my-docs",
     "PROMPT_FAMILY": "default",
     "LLM_KWARGS": {},
-    "EMBEDDING_KWARGS": {},
+    "EMBEDDING_KWARGS": {"chunk_size": 64},
     "VERBOSE": False,
     # Deep research specific settings
     "DEEP_RESEARCH_BREADTH": 3,
     "DEEP_RESEARCH_DEPTH": 2,
     "DEEP_RESEARCH_CONCURRENCY": 4,
-
     # MCP retriever specific settings
     "MCP_SERVERS": [],  # List of predefined MCP server configurations
     "MCP_AUTO_TOOL_SELECTION": True,  # Whether to automatically select the best tool for a query
     "MCP_ALLOWED_ROOT_PATHS": [],  # List of allowed root paths for local file access
     "MCP_STRATEGY": "fast",  # MCP execution strategy: "fast", "deep", "disabled"
     "REASONING_EFFORT": "medium",
-
     # Image generation settings (optional - requires GOOGLE_API_KEY)
     # Free tier models: gemini-2.5-flash-image, gemini-2.0-flash-exp-image-generation
     # Paid tier models: imagen-4.0-generate-001, imagen-4.0-fast-generate-001
