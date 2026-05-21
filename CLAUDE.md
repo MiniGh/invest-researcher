@@ -59,3 +59,17 @@ Key knobs: `RETRIEVER` (comma-separate for hybrid, e.g. `tavily,mcp`), and the t
 
 - Report types live in `backend/report_type/`: `basic_report/`, `detailed_report/`, `deep_research/`; valid values come from the `ReportType` enum in `gpt_researcher/utils/enum.py`.
 - `evals/` — `simple_evals/` (factuality, adapted from OpenAI simple-evals) and `hallucination_eval/`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live on GitHub at `MiniGh/invest-researcher` (the user's fork; `origin` points here, `upstream` points to `assafelovic/gpt-researcher`). Use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles using default label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). No remapping. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout (root-level `CONTEXT.md` + `docs/adr/`). Migrate to multi-context when frontend work begins. See `docs/agents/domain.md`.
