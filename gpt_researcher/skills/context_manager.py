@@ -34,6 +34,9 @@ class ContextManager:
         """
         self.researcher = researcher
 
+    # 接收原始查询和爬取到的网页内容列表，做两件事：
+    # 相似度筛选 + 内容压缩
+    # L2财报旁路相关
     async def get_similar_content_by_query(self, query: str, pages: list) -> str:
         """Get similar content from pages based on the query.
 
@@ -56,13 +59,16 @@ class ContextManager:
             documents=pages,
             embeddings=self.researcher.memory.get_embeddings(),
             prompt_family=self.researcher.prompt_family,
-            **self.researcher.kwargs
+            **self.researcher.kwargs,
         )
         return await context_compressor.async_get_context(
             query=query, max_results=10, cost_callback=self.researcher.add_costs
         )
 
-    async def get_similar_content_by_query_with_vectorstore(self, query: str, filter: dict | None) -> str:
+    # 从向量数据库检索相关内容
+    async def get_similar_content_by_query_with_vectorstore(
+        self, query: str, filter: dict | None
+    ) -> str:
         """Get similar content from vectorstore based on the query.
 
         Args:
@@ -78,19 +84,23 @@ class ContextManager:
                 "fetching_query_format",
                 f" Getting relevant content based on query: {query}...",
                 self.researcher.websocket,
-                )
+            )
         vectorstore_compressor = VectorstoreCompressor(
-            self.researcher.vector_store, filter=filter, prompt_family=self.researcher.prompt_family,
-            **self.researcher.kwargs
+            self.researcher.vector_store,
+            filter=filter,
+            prompt_family=self.researcher.prompt_family,
+            **self.researcher.kwargs,
         )
-        return await vectorstore_compressor.async_get_context(query=query, max_results=8)
+        return await vectorstore_compressor.async_get_context(
+            query=query, max_results=8
+        )
 
     async def get_similar_written_contents_by_draft_section_titles(
         self,
         current_subtopic: str,
         draft_section_titles: List[str],
         written_contents: List[Dict],
-        max_results: int = 10
+        max_results: int = 10,
     ) -> List[str]:
         """Get similar written contents based on draft section titles.
 
@@ -109,7 +119,11 @@ class ContextManager:
         all_queries = [current_subtopic] + draft_section_titles
 
         async def process_query(query: str) -> Set[str]:
-            return set(await self.__get_similar_written_contents_by_query(query, written_contents, **self.researcher.kwargs))
+            return set(
+                await self.__get_similar_written_contents_by_query(
+                    query, written_contents, **self.researcher.kwargs
+                )
+            )
 
         results = await asyncio.gather(*[process_query(query) for query in all_queries])
         relevant_contents = set().union(*results)
@@ -122,7 +136,7 @@ class ContextManager:
         query: str,
         written_contents: List[Dict],
         similarity_threshold: float = 0.5,
-        max_results: int = 10
+        max_results: int = 10,
     ) -> List[str]:
         """Get similar written contents for a single query.
 
@@ -147,8 +161,10 @@ class ContextManager:
             documents=written_contents,
             embeddings=self.researcher.memory.get_embeddings(),
             similarity_threshold=similarity_threshold,
-            **self.researcher.kwargs
+            **self.researcher.kwargs,
         )
         return await written_content_compressor.async_get_context(
-            query=query, max_results=max_results, cost_callback=self.researcher.add_costs
+            query=query,
+            max_results=max_results,
+            cost_callback=self.researcher.add_costs,
         )

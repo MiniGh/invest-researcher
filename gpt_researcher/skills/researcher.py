@@ -45,6 +45,7 @@ class ResearchConductor:
         # Track MCP query count for balanced mode
         self._mcp_query_count = 0
 
+    # 规划子查询
     async def plan_research(self, query, query_domains=None):
         """Gets the sub-queries from the query
         Args:
@@ -145,6 +146,8 @@ class ResearchConductor:
             )
 
         # Conduct research based on the source type
+        # 根据 self.researcher.report_source 的值进入不同分支，
+        # 每个分支最终都调用 _get_context_by_web_search() 来产出 research_data
         if self.researcher.source_urls:
             self.logger.info("Using provided source URLs")
             research_data = await self._get_context_by_urls(self.researcher.source_urls)
@@ -405,6 +408,7 @@ class ResearchConductor:
             )
 
         # Using asyncio.gather to process the sub_queries asynchronously
+        # 并行处理每个子查询
         try:
             context = await asyncio.gather(
                 *[
@@ -605,11 +609,13 @@ class ResearchConductor:
                     )
 
             # Get web search context using non-MCP retrievers (if no scraped data provided)
+            # 不使用 MCP 就使用 web 搜索获取内容
             if not scraped_data:
                 scraped_data = await self._scrape_data_by_urls(sub_query, query_domains)
                 self.logger.info(f"Scraped data size: {len(scraped_data)}")
 
             # Get similar content based on scraped data
+            # RAG 压缩/筛选
             if scraped_data:
                 web_context = (
                     await self.researcher.context_manager.get_similar_content_by_query(
@@ -870,6 +876,9 @@ class ResearchConductor:
 
         return new_urls
 
+    # 执行搜索，并对结果进行分类，分为两类：
+    # 情况 A：已有完整正文内容，无需再抓取
+    # 情况 B：只有 URL，需要去网页上抓取
     async def _search_relevant_source_urls(
         self, query, query_domains: list | None = None
     ):
@@ -924,6 +933,7 @@ class ResearchConductor:
 
         return new_search_urls, prefetched_content
 
+    # 接受一个子查询，调用所有配置的检索器搜出url，对需要抓取的url做并行爬取
     async def _scrape_data_by_urls(self, sub_query, query_domains: list | None = None):
         """
         Runs a sub-query across multiple retrievers and scrapes the resulting URLs.
@@ -953,6 +963,7 @@ class ResearchConductor:
             )
 
         # Scrape URLs that need fetching (skip those already provided by retrievers)
+        # 并行抓取url中的内容
         scraped_content = await self.researcher.scraper_manager.browse_urls(
             new_search_urls
         )
@@ -965,6 +976,7 @@ class ResearchConductor:
 
         return scraped_content
 
+    # 调用检索器，获取搜索结果；Tool/function Calling
     async def _search(self, retriever, query):
         """
         Perform a search using the specified retriever.

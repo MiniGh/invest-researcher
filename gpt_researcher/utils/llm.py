@@ -38,6 +38,7 @@ def get_llm(llm_provider: str, **kwargs):
     return GenericLLMProvider.from_provider(llm_provider, **kwargs)
 
 
+# 调用 LLM API（OpenAI/Claude/etc）并处理流式输出
 async def create_chat_completion(
         messages: list[dict[str, str]],
         model: str | None = None,

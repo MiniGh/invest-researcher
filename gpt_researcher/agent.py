@@ -396,6 +396,7 @@ class GPTResearcher:
             self._current_step = "deep_research"
             return await self._handle_deep_research(on_progress)
 
+        # 让 LLM 选定领域（agent）和身份角色（role）
         if not (self.agent and self.role):
             self._current_step = "agent_selection"
             await self._log_event("action", action="choose_agent")

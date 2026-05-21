@@ -247,16 +247,19 @@ async def generate_report(
 
     """
     available_images = available_images or []
+
+    # 获取对应报告类型的 prompt 生成函数
     generate_prompt = get_prompt_by_report_type(report_type, prompt_family)
     report = ""
 
+    # 根据报告类型生成 prompt 内容
     if report_type == "subtopic_report":
         content = f"{generate_prompt(query, existing_headers, relevant_written_contents, main_topic, context, report_format=cfg.report_format, tone=tone, total_words=cfg.total_words, language=cfg.language)}"
     elif custom_prompt:
         content = f"{custom_prompt}\n\nContext: {context}"
     else:
         content = f"{generate_prompt(query, context, report_source, report_format=cfg.report_format, tone=tone, total_words=cfg.total_words, language=cfg.language)}"
-    
+
     # Add available images instruction if images were pre-generated
     if available_images:
         images_info = "\n".join([
@@ -275,8 +278,8 @@ Place each image on its own line after the relevant section header or paragraph.
         report = await create_chat_completion(
             model=cfg.smart_llm_model,
             messages=[
-                {"role": "system", "content": f"{agent_role_prompt}"},
-                {"role": "user", "content": content},
+                {"role": "system", "content": f"{agent_role_prompt}"},   # ← Agent 角色
+                {"role": "user", "content": content},  # ← 包含 context 的用户消息
             ],
             temperature=0.35,
             llm_provider=cfg.smart_llm_provider,

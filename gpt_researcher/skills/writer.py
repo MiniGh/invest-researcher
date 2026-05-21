@@ -61,7 +61,7 @@ class ReportGenerator:
             str: The generated report.
         """
         available_images = available_images or []
-        
+
         # send the selected images prior to writing report
         research_images = self.researcher.get_research_images()
         if research_images:
@@ -74,8 +74,9 @@ class ReportGenerator:
                 research_images
             )
 
+        # 使用外部 context（通常是）或内部 context
         context = ext_context or self.researcher.context
-        
+
         # Log image availability
         if available_images and self.researcher.verbose:
             await stream_output(
@@ -84,7 +85,7 @@ class ReportGenerator:
                 f"🖼️ {len(available_images)} pre-generated images available for embedding",
                 self.researcher.websocket,
             )
-        
+
         if self.researcher.verbose:
             await stream_output(
                 "logs",
@@ -93,6 +94,7 @@ class ReportGenerator:
                 self.researcher.websocket,
             )
 
+        # 组装prompt(参数)
         report_params = self.research_params.copy()
         if not report_params["agent_role_prompt"]:
             report_params["agent_role_prompt"] = self.researcher.cfg.agent_role or self.researcher.role

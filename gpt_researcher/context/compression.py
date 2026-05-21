@@ -119,6 +119,7 @@ class ContextCompressor:
         self.similarity_threshold = os.environ.get("SIMILARITY_THRESHOLD", 0.35)
         self.prompt_family = prompt_family
 
+    # 构建压缩管线
     def __get_contextual_retriever(self):
         """Build the contextual compression retriever pipeline.
 
@@ -126,7 +127,9 @@ class ContextCompressor:
             A ContextualCompressionRetriever configured with text splitting
             and embedding-based filtering.
         """
+        # 将文档分成 1000 字符块
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+        # 使用 embeddings 对象计算相似度
         relevance_filter = EmbeddingsFilter(embeddings=self.embeddings,
                                             similarity_threshold=self.similarity_threshold)
         pipeline_compressor = DocumentCompressorPipeline(
@@ -159,6 +162,7 @@ class ContextCompressor:
         chunk_threshold = int(os.environ.get("COMPRESSION_THRESHOLD", "8000"))
 
         # If total content is small, skip expensive compression and return directly
+        # 如果文档总大小小于 8KB (COMPRESSION_THRESHOLD)，跳过昂贵的 embedding 压缩
         if total_chars < chunk_threshold and len(self.documents) <= max_results:
             # Fast path: no compression needed
             direct_docs = [
@@ -171,9 +175,13 @@ class ContextCompressor:
             return self.prompt_family.pretty_print_docs(direct_docs, max_results)
 
         # Standard path: use compression for large content
+        # embedding 压缩，两步执行
+
+        # 1. 构建压缩管线
         compressed_docs = self.__get_contextual_retriever()
         if cost_callback:
             cost_callback(estimate_embedding_cost(model=OPENAI_EMBEDDING_MODEL, docs=self.documents))
+        # 2. 执行压缩
         relevant_docs = await asyncio.to_thread(compressed_docs.invoke, query, **self.kwargs)
         return self.prompt_family.pretty_print_docs(relevant_docs, max_results)
 
