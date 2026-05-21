@@ -54,3 +54,6 @@ CURSOR_RULES.md
 /.history
 
 prepare/
+
+# Skill installer duplicate of .claude/skills/ — keep one canonical copy
+.agents/
