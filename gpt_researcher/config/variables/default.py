@@ -47,6 +47,16 @@ DEFAULT_CONFIG: BaseConfig = {
     "MCP_ALLOWED_ROOT_PATHS": [],  # List of allowed root paths for local file access
     "MCP_STRATEGY": "fast",  # MCP execution strategy: "fast", "deep", "disabled"
     "REASONING_EFFORT": "medium",
+    # Investment research (Slice 1): default Tavily include_domains whitelist
+    "FINANCE_DOMAIN_WHITELIST": [
+        # SEC / regulatory
+        "sec.gov", "www.sec.gov",
+        # Top-tier financial press
+        "ft.com", "wsj.com", "bloomberg.com", "reuters.com",
+        "cnbc.com", "marketwatch.com", "barrons.com",
+        # Data & retail-investor research
+        "finance.yahoo.com", "seekingalpha.com", "morningstar.com", "fool.com",
+    ],
     # Image generation settings (optional - requires GOOGLE_API_KEY)
     # Free tier models: gemini-2.5-flash-image, gemini-2.0-flash-exp-image-generation
     # Paid tier models: imagen-4.0-generate-001, imagen-4.0-fast-generate-001

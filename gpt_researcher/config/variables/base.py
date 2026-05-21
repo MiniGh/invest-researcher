@@ -43,6 +43,8 @@ class BaseConfig(TypedDict):
     MCP_ALLOWED_ROOT_PATHS: List[str]
     MCP_STRATEGY: str
     REASONING_EFFORT: str
+    # Investment research (Slice 1)
+    FINANCE_DOMAIN_WHITELIST: List[str]
     # Image generation settings
     IMAGE_GENERATION_MODEL: Union[str, None]
     IMAGE_GENERATION_MAX_IMAGES: int
