@@ -9,8 +9,9 @@ from typing import Dict, List
 
 from fastapi import WebSocket
 
-from report_type import BasicReport, DetailedReport
+from report_type import DetailedReport
 
+from gpt_researcher.investment import InvestmentResearcher
 from gpt_researcher.utils.enum import ReportType, Tone
 from gpt_researcher.actions import stream_output  # Import stream_output
 from .multi_agent_runner import run_multi_agent_task
@@ -166,7 +167,7 @@ async def run_agent(task, report_type, report_source, source_urls, document_urls
         report = await researcher.run()
         
     else:
-        researcher = BasicReport(
+        researcher = InvestmentResearcher(
             query=task,
             query_domains=query_domains,
             report_type=report_type,

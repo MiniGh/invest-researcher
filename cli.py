@@ -16,7 +16,7 @@ import os
 
 from dotenv import load_dotenv
 
-from gpt_researcher import GPTResearcher
+from gpt_researcher.investment import InvestmentResearcher
 from gpt_researcher.utils.enum import ReportType, ReportSource, Tone
 from backend.report_type import DetailedReport
 from backend.utils import write_md_to_pdf, write_md_to_word
@@ -171,18 +171,16 @@ async def main(args):
             "pessimistic": Tone.Pessimistic
         }
 
-        researcher = GPTResearcher(
+        researcher = InvestmentResearcher(
             query=args.query,
             query_domains=query_domains,
             report_type=args.report_type,
             report_source=args.report_source,
             tone=tone_map[args.tone],
-            encoding=args.encoding
+            encoding=args.encoding,
         )
 
-        await researcher.conduct_research()
-
-        report = await researcher.write_report()
+        report = await researcher.run()
 
     # Write the report to markdown file
     task_id = str(uuid4())
