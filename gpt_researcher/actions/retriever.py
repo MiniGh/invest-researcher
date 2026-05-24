@@ -72,6 +72,12 @@ def get_retriever(retriever: str):
             from gpt_researcher.retrievers import TavilySearch
 
             return TavilySearch
+        case "investment_tavily":
+            # Fork-specific:per-sub-query 白名单决策的 Tavily 子类
+            # 由 InvestmentResearcher 在 init 时通过 cfg.retriever 切入
+            from gpt_researcher.investment.retriever import InvestmentTavilySearch
+
+            return InvestmentTavilySearch
         case "exa":
             from gpt_researcher.retrievers import ExaSearch
 

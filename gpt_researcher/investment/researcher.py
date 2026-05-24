@@ -1,10 +1,15 @@
 """
-InvestmentResearcher —— 美股投研助手的顶层 wrapper。
+InvestmentResearcher —— 美股投研助手的顶层路由器。
 
-Slice 1: "other 兜底"(投研人设 + 财经域名白名单)
-Slice 2b: 加 L0 简化版(单公司检测)+ L2b 财报旁路 + L3 结构化抽取 + trust label
+Slice 1: "其他 兜底"(投研人设 + 财经域名白名单)—— 历史形态
+Slice 2b: 加 L0 简化版(单公司检测)+ L2b 财报旁路 + L3 结构化抽取 + trust label —— 历史形态
+Slice 3.0: 重构为 L0-A 二分类路由器
+  - L0-A 分类:company_profile / 其他
+  - L0-B 由 InvestmentTavilySearch 自查每条 sub-query 决定白名单(per-sub-query)
+  - company_profile 路径:走 Slice 2b 子例程(filing + extractor)+ per-label writing prompt
+  - 其他 路径:透传 vanilla GPTResearcher,不进任何特殊管线
 
-后续 slice 会加 L1 树编排 / L4 分层模板写作。
+后续 slice 会加 L1 树编排器(Slice 3.1)+ 其余 4 个标签(Slice 3.2 / 3.3)。
 """
 import hashlib
 import logging
@@ -14,9 +19,11 @@ from typing import Any
 from gpt_researcher import GPTResearcher
 
 from ..actions import stream_output
-from .company_detector import CompanyDetector
+from .classifier import ClassificationResult, QueryClassifier
 from .extractor import METRIC_FIELDS, StructuredExtractor
 from .filing_finder import FilingFinder
+from .schema import CompanyTarget
+from .writing_prompts import WRITING_PROMPT_COMPANY_PROFILE
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +56,7 @@ Boundaries:
 
 
 class InvestmentResearcher:
-    """美股投研助手的顶层入口。"""
+    """美股投研助手的顶层入口(Slice 3.0:L0-A 路由器)。"""
 
     def __init__(
         self,
@@ -94,23 +101,22 @@ class InvestmentResearcher:
 
         self.gpt_researcher = GPTResearcher(**gpt_researcher_params)
 
-        # 用户没传 query_domains -> 从 cfg 取默认白名单(财经域名)。
-        # GPTResearcher 本身不会做这个 fallback,在 wrapper 这层处理。
-        if not query_domains:
-            default_wl = getattr(
-                self.gpt_researcher.cfg, "finance_domain_whitelist", None
-            )
-            if default_wl:
-                self.gpt_researcher.query_domains = default_wl
+        # Slice 3.0:不再无脑全局套白名单(Slice 2b 那段已删除)。
+        # 白名单决策下放给 L0-B + InvestmentTavilySearch per sub-query 处理。
+        # 切 retriever:整个 wrapper 默认走 investment_tavily;
+        # "其他" 兜底分支在 run() 内会临时切回 vanilla "tavily"。
+        # 用户显式传 query_domains 仍被 InvestmentTavilySearch 尊重(escape hatch)。
+        self.gpt_researcher.cfg.retriever = "investment_tavily"
 
         if max_search_results is not None:
             self.gpt_researcher.cfg.max_search_results_per_query = int(
                 max_search_results
             )
 
-        # Slice 2b: instantiate the three new components
+        # Slice 3.0:实例化 L0-A 分类器(替换 Slice 2b 的 CompanyDetector)。
+        # FilingFinder / StructuredExtractor 在 company_profile 路径仍被复用。
         cfg = self.gpt_researcher.cfg
-        self.company_detector = CompanyDetector(cfg)
+        self.classifier = QueryClassifier(cfg)
         self.filing_finder = FilingFinder(self.gpt_researcher)
         self.extractor = StructuredExtractor(cfg)
 
@@ -120,74 +126,98 @@ class InvestmentResearcher:
         return f"investment_research_{timestamp}_{query_hash}"
 
     async def _log(self, message: str) -> None:
-        """流式日志(Python logger + WebSocket,如果 WS 在)。失败不影响主流程。"""
-        logger.info(message)
-        ws = getattr(self.gpt_researcher, "websocket", None)
-        if ws is not None:
-            try:
-                await stream_output("logs", "investment_research", message, ws)
-            except Exception as e:
-                logger.warning(f"stream_output failed: {e}")
+        """流式日志:无条件走 stream_output,它内部会处理 ws=None(CLI)和 ws 在(WS)两种情况。
+
+        旧实现把 stream_output 调用 gate 在 `if ws is not None`,导致 CLI 下
+        L0-A 路由 / company_profile / 财报子例程的标志 log 全部静默,只在 WS 下可见。
+        """
+        try:
+            ws = getattr(self.gpt_researcher, "websocket", None)
+            await stream_output("logs", "investment_research", message, ws)
+        except Exception as e:
+            logger.warning(f"_log via stream_output failed: {e}")
 
     async def run(self) -> str:
-        # 1. 正常 L2 web research(Slice 1 已有)
+        """顶层路由器(Slice 3.0)。"""
+        # 1. L0-A 分类
+        try:
+            classification = await self.classifier.classify(self.gpt_researcher.query)
+        except Exception as e:
+            # 分类器内部已有 try/except,这里是双保险
+            logger.warning(f"L0-A 分类抛错(意外),fallback 走 其他 兜底:{e}")
+            classification = ClassificationResult(label="其他")
+
+        await self._log(f"🎯 L0-A 标签:{classification.label}")
+
+        # 2. 分支路由
+        if classification.label == "company_profile":
+            return await self._run_company_profile_path(classification)
+        # 其他(包括未来未定义的 label,防御性都走兜底)
+        return await self._run_other_path()
+
+    async def _run_other_path(self) -> str:
+        """其他 兜底:vanilla GPTResearcher,不套白名单,不调子例程。
+
+        投研 persona 仍然保留(已在 __init__ 预填给 GPTResearcher)——
+        定位决定我们的报告仍带"投研味",只是不强加 per-label writing prompt
+        也不跑 filing/extractor。
+        """
+        # 切回原生 tavily,关掉 per-sub-query L0-B 决策
+        self.gpt_researcher.cfg.retriever = "tavily"
+        await self._log("ℹ️ 走 其他 兜底:vanilla gpt-researcher,无白名单 / 无子例程")
+        await self.gpt_researcher.conduct_research()
+        # 不传 custom_prompt:沿用 gpt-researcher 默认报告 prompt
+        return await self.gpt_researcher.write_report()
+
+    async def _run_company_profile_path(self, c: ClassificationResult) -> str:
+        """company_profile 主路径。
+
+        - per-sub-query 白名单决策:由 investment_tavily retriever 自动处理(已在 __init__ 切好)
+        - Slice 2b 公司深挖子例程:filing_finder + extractor
+        - per-label writing prompt:write_report(custom_prompt=WRITING_PROMPT_COMPANY_PROFILE)
+        """
+        await self._log(f"📌 company_profile:{c.company_name} ({c.ticker or 'no ticker'})")
+
+        # 1. 正常 web research
+        # (L0-B 自动决定每条 sub-query 用不用白名单,InvestmentTavilySearch 内部处理)
         await self.gpt_researcher.conduct_research()
 
-        # Slice 2b 入口 ----------------------------------------------------
-        metrics_md: str | None = None
+        # 2. 公司深挖子例程(Slice 2b 代码复用)
+        # 直接用 classifier 出的 name/ticker,跳过原 CompanyDetector 的二次抽取
+        target = CompanyTarget(name=c.company_name, ticker=c.ticker)
 
-        # 2. 公司检测(失败时降级到 Slice 1 行为)
-        target = None
+        filing = None
         try:
-            target = await self.company_detector.detect(self.gpt_researcher.query)
+            filing = await self.filing_finder.fetch(target)
         except Exception as e:
-            logger.warning(f"Company detection raised: {e}")
+            logger.warning(f"FilingFinder raised: {e}")
 
-        if target is None:
-            await self._log("ℹ️ 未识别为单一目标公司,跳过 Slice 2b 财报旁路")
+        if filing:
+            await self._log(f"📑 已取财报:{filing.url}")
         else:
-            await self._log(
-                f"🎯 目标公司:{target.name} ({target.ticker or 'no ticker'})"
+            await self._log("⚠️ 未取到财报,L3 将只用 web context")
+
+        metrics_md: str | None = None
+        try:
+            metrics = await self.extractor.extract(
+                filing=filing,
+                web_context=self.gpt_researcher.context,
+                target=target,
             )
+            populated = sum(
+                1
+                for f in METRIC_FIELDS
+                if getattr(metrics, f).value is not None
+            )
+            await self._log(
+                f"🔬 已抽取 {populated}/{len(METRIC_FIELDS)} 个指标字段 → 注入 context"
+            )
+            metrics_md = self.extractor.render_as_markdown(metrics)
+        except Exception as e:
+            logger.warning(f"StructuredExtractor raised: {e}")
+            await self._log("⚠️ 结构化抽取失败,只写原始研究报告")
 
-            # 3. L2b 财报抓取(失败 → filing=None,L3 改 web-only)
-            filing = None
-            try:
-                filing = await self.filing_finder.fetch(target)
-            except Exception as e:
-                logger.warning(f"FilingFinder raised: {e}")
-
-            if filing:
-                await self._log(f"📑 已取财报:{filing.url}")
-            else:
-                await self._log("⚠️ 未取到财报,L3 将只用 web context")
-
-            # 4. L3 结构化抽取(失败 → 直接跳过 metrics,不影响主报告)
-            try:
-                metrics = await self.extractor.extract(
-                    filing=filing,
-                    web_context=self.gpt_researcher.context,
-                    target=target,
-                )
-                populated = sum(
-                    1
-                    for f in METRIC_FIELDS
-                    if getattr(metrics, f).value is not None
-                )
-                await self._log(
-                    f"🔬 已抽取 {populated}/{len(METRIC_FIELDS)} 个指标字段 → 附加到报告末尾"
-                )
-                metrics_md = self.extractor.render_as_markdown(metrics)
-            except Exception as e:
-                logger.warning(f"StructuredExtractor raised: {e}")
-                await self._log("⚠️ 结构化抽取失败,只写原始研究报告")
-
-        # Slice 2b UX 修复:也注入到 context,让 LLM 在写报告时看到结构化数据
-        # → UI 流式渲染就会有 metrics(LLM 大概率会复述这个 markdown 表)。
-        # Post-append 仍保留作 safety net,保证文件输出完整。
-        #
-        # 注意:conduct_research() 跑完后 self.context 是 str(由 list 拼接而成),
-        # 不是 list,所以不能直接 .append();这里 type-aware 处理。
+        # 3. 注入 metrics markdown 到 context(让 LLM 在写报告时能看到结构化指标)
         if metrics_md:
             ctx = self.gpt_researcher.context
             if isinstance(ctx, list):
@@ -195,9 +225,9 @@ class InvestmentResearcher:
             else:
                 self.gpt_researcher.context = f"{ctx}\n\n{metrics_md}"
 
-        # 5. 写报告(Slice 1)
-        # Slice 2b 注:metrics 已通过 context 注入(上面),LLM 会在报告体里
-        # 引用这些精确数字 + 来源 URL,自己生成表格。post-append 那份 canonical
-        # 表已根据使用反馈移除(冗余 + 数据可能比报告体更旧 + UI 不渲染)。
-        # 想找回显式 trust badge 的话,未来可做 post-LLM badge 注入。
-        return await self.gpt_researcher.write_report()
+        # 4. 写报告:用 per-label writing prompt(Slice 3.0 引入)
+        # 这是 L4 塌缩形态的具体实例 —— 不再走 N 次模板 + assembler,而是
+        # 1 次原生 write_report,用 company_profile 专用 prompt 引导 6 段结构。
+        return await self.gpt_researcher.write_report(
+            custom_prompt=WRITING_PROMPT_COMPANY_PROFILE,
+        )
