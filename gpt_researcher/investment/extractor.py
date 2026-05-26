@@ -8,7 +8,7 @@ Conflict(filing 和 web 同字段不同值):filing 主,web 值进 conflict 字�
 markdown 渲染时并列展示。
 """
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 import json_repair
 
@@ -43,7 +43,12 @@ class StructuredExtractor:
         filing: Optional[FilingDoc],
         web_context: list,
         target: CompanyTarget,
+        mode: Literal["full", "mini"] = "full",
     ) -> CompanyMetrics:
+        # Slice 3.1: mode 参数 scaffold,body 内**不分支**——所有调用方仍走 full 行为。
+        # mode="mini" 真实逻辑(短 prompt + 2-3 核心字段 + 可选跳 SEC 抓取)由 Slice 3.2
+        # sector_landscape / value_chain / theme_analysis 调用时实现。这里先 silent
+        # 接受参数,保证 caller 接口稳定。
         # Pass 1: filing-only
         report_period: Optional[str] = None
         if filing and filing.raw_content:

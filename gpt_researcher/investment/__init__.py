@@ -1,5 +1,6 @@
 from .b_classifier import FINANCE_WHITELIST, classify_subquery
 from .classifier import ClassificationResult, QueryClassifier
+from .orchestrator import Orchestrator
 from .researcher import InvestmentResearcher
 from .retriever import InvestmentTavilySearch
 from .schema import (
@@ -9,6 +10,7 @@ from .schema import (
     MetricField,
     TrustLabel,
 )
+from .strategies import CompanyProfileStrategy, VanillaStrategy
 from .writing_prompts import WRITING_PROMPT_COMPANY_PROFILE
 
 __all__ = [
@@ -26,4 +28,8 @@ __all__ = [
     "FINANCE_WHITELIST",
     "InvestmentTavilySearch",
     "WRITING_PROMPT_COMPANY_PROFILE",
+    # Slice 3.1
+    "Orchestrator",
+    "CompanyProfileStrategy",
+    "VanillaStrategy",
 ]
