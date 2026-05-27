@@ -44,6 +44,7 @@ class CompanyMetrics:
     filing_retrieved: bool = False
     report_period: Optional[str] = None
     revenue: MetricField = field(default_factory=MetricField)
+    yoy_growth: MetricField = field(default_factory=MetricField)  # Slice 3.2: 同比增长率(%);mini 必填字段之一
     gross_margin: MetricField = field(default_factory=MetricField)
     operating_margin: MetricField = field(default_factory=MetricField)
     net_income: MetricField = field(default_factory=MetricField)

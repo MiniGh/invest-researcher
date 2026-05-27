@@ -1,17 +1,24 @@
-"""L1 树编排器(骨架) —— Slice 3.1 depth-1 起步形态。
+"""L1 树编排器 —— Slice 3.2 起 depth-2 形态。
 
 按 L0-A classification.label dispatch 到对应 Strategy 实例。
-Slice 3.1 只支持 company_profile 和 其他 两个 strategy;Slice 3.2 / 3.3
-加多 strategy 时只需在 strategies dict 里注册(以及在 strategies/ 下新建文件)。
+Slice 3.2 起 strategies dict 注册 4 个 strategy:
+- company_profile      (Slice 2b/3.1 已实现,depth-1 平面)
+- company_comparison   (Slice 3.2 新增,classifier 直接给 companies,depth-2 单批)
+- sector_landscape     (Slice 3.2 新增,depth-2 两步搜索:Level 1 → 玩家解析 → Level 2)
+- 其他                  (Slice 3.0 vanilla 兜底)
 
-Slice 3.1 阶段 L1 只是"strategy 选择器 + 调用器"。Slice 3.2+ 引入
-bootstrap-then-expand 时,L1 会承担更多职责(管 sub-query 树展开 +
-bottom-up summarization),strategies 则提供拆解策略和 leaf 逻辑。
+depth-2 strategies 用 ExplicitQueryResearchConductor 跳过 gpt-researcher 默认的
+LLM sub-query 拆解,保留下游 retrieve/scrape/summarize 全套机制。
 """
 import logging
 
 from .classifier import ClassificationResult
-from .strategies import CompanyProfileStrategy, VanillaStrategy
+from .strategies import (
+    CompanyComparisonStrategy,
+    CompanyProfileStrategy,
+    SectorLandscapeStrategy,
+    VanillaStrategy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +30,23 @@ class Orchestrator:
         """收 InvestmentResearcher 装配好的依赖,实例化各 strategy。
 
         各 strategy 只接它自己需要的依赖:
-        - CompanyProfileStrategy 需要 gpt_researcher + filing_finder + extractor
-        - VanillaStrategy 只需要 gpt_researcher
+        - CompanyProfileStrategy:gpt_researcher + filing_finder + extractor
+        - CompanyComparisonStrategy:gpt_researcher + extractor(不调 filing_finder,见 prepare/11 已知限制)
+        - SectorLandscapeStrategy:gpt_researcher + extractor(mini mode,跳 filing)
+        - VanillaStrategy:gpt_researcher only
         """
         self.strategies = {
             "company_profile": CompanyProfileStrategy(
                 gpt_researcher=gpt_researcher,
                 filing_finder=filing_finder,
+                extractor=extractor,
+            ),
+            "company_comparison": CompanyComparisonStrategy(
+                gpt_researcher=gpt_researcher,
+                extractor=extractor,
+            ),
+            "sector_landscape": SectorLandscapeStrategy(
+                gpt_researcher=gpt_researcher,
                 extractor=extractor,
             ),
             "其他": VanillaStrategy(gpt_researcher=gpt_researcher),
