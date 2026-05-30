@@ -163,6 +163,10 @@ class InvestmentResearcher:
                 f"📌 company_profile:{classification.company_name} "
                 f"({classification.ticker or 'no ticker'})"
             )
+        elif classification.label == "value_chain":
+            await self._log(f"📌 value_chain:{classification.industry}")
+        elif classification.label == "theme_analysis":
+            await self._log(f"📌 theme_analysis:{classification.theme}")
 
         # 3. L1 dispatch 到对应 strategy
         return await self.orchestrator.execute(classification)

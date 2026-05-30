@@ -2,9 +2,8 @@
 
 骨架(对应 prepare/08 § L0-A.3):
   Level 1:5 条静态 sub-query(行业市场规模 / 驱动 / 阻力 / 竞争格局 / 主要玩家)
-  → 解析"主要玩家"列表(独立 FAST_LLM 调用,3 层防御)
-    L1: prompt 强约束"只输 JSON"
-    L2: json_repair 容错
+  → 解析"主要玩家"列表(bootstrap_parsers.parse_company_list,3 层防御)
+    L1: prompt 强约束"只输 JSON" / L2: json_repair 容错
     L3: 解析失败 → 跳 Level 2,降级出"无玩家卡片"的行业概览
   Level 2:每家 P_j 2 条(角色 + 财务 snapshot)
   → 每家 mini 抽取(3 字段:revenue / yoy_growth / gross_margin)
@@ -13,14 +12,16 @@
 
 跨 batch context 累加由本 strategy 自己管(conduct_research 会 overwrite
 researcher.context,必须 strategy 层保存上一轮字符串再拼)。
+
+Slice 3.3:玩家解析逻辑提取到共享 bootstrap_parsers.parse_company_list
+(value_chain / theme_analysis 也用);本文件改为调用它,行为不变。
 """
 import logging
 from typing import Optional
 
-import json_repair
 from gpt_researcher.actions import stream_output
-from gpt_researcher.utils.llm import create_chat_completion
 
+from ..bootstrap_parsers import parse_company_list
 from ..classifier import ClassificationResult
 from ..explicit_research_conductor import (
     ExplicitQueryResearchConductor,
@@ -30,35 +31,6 @@ from ..schema import CompanyTarget
 from ..writing_prompts import WRITING_PROMPT_SECTOR_LANDSCAPE
 
 logger = logging.getLogger(__name__)
-
-
-PLAYER_EXTRACT_PROMPT = """\
-From the following research about the {sector} industry, identify the top \
-3-5 leading **US-listed** public companies by revenue or market share. \
-This is for a US-equity investment research report — non-US-listed companies \
-are out of scope.
-
-Output ONLY a JSON array with this exact schema, no other text, no markdown \
-fences, no leading or trailing prose:
-[{{"name": "Full company name", "ticker": "TICKER"}}, ...]
-
-Strict rules:
-- ONLY US-listed companies (NYSE / NASDAQ / NYSE American primary listing).
-- Each company MUST have a confirmed US ticker. If you are not sure about
-  the US ticker, EXCLUDE that company rather than guessing or setting ticker
-  to null.
-- Foreign companies trading via ADRs ARE allowed if the ADR has a US ticker
-  (e.g., BYD as BYDDY, TSMC as TSM). Foreign companies WITHOUT a US listing
-  (e.g., CATL, LG Energy Solution, Panasonic) are EXCLUDED.
-- Output at most 5 companies. Prefer the most clearly mentioned in the
-  research text among eligible US-listed names.
-- Output an empty array [] if no US-listed players are surfaced in the text.
-
-Research text:
----
-{text}
----
-"""
 
 
 class SectorLandscapeStrategy:
@@ -95,58 +67,6 @@ class SectorLandscapeStrategy:
             )
         return queries
 
-    async def _extract_players(
-        self, level1_context: str, sector: str
-    ) -> list[CompanyTarget]:
-        """3-layer defense JSON extraction.
-
-        L1: prompt 强约束(`Output ONLY a JSON array ...`)
-        L2: json_repair 容错(即使有散文夹带也能抠出 JSON)
-        L3: 失败 → 返回 [],SectorLandscapeStrategy.run() 据此走降级路径
-
-        永不抛错。
-        """
-        prompt = PLAYER_EXTRACT_PROMPT.format(sector=sector, text=level1_context)
-        cfg = self.gpt_researcher.cfg
-        try:
-            response = await create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                model=cfg.fast_llm_model,
-                llm_provider=cfg.fast_llm_provider,
-                max_tokens=400,
-                llm_kwargs=cfg.llm_kwargs,
-            )
-        except Exception as e:
-            logger.warning(f"Player extraction LLM call failed: {e}")
-            return []
-
-        try:
-            parsed = json_repair.loads(response)
-        except Exception as e:
-            logger.warning(
-                f"Player extraction JSON parse failed: {e}; raw={response[:200]!r}"
-            )
-            return []
-
-        if not isinstance(parsed, list):
-            logger.warning(
-                f"Player extraction returned non-list: {response[:200]!r}"
-            )
-            return []
-
-        out: list[CompanyTarget] = []
-        for item in parsed:
-            if not isinstance(item, dict):
-                continue
-            name = item.get("name")
-            ticker = item.get("ticker")
-            # 严格 US-listed:必须同时有 name 和 ticker;LLM 偶尔无视 prompt
-            # 输出 ticker=null 的非美股,这里代码层兜底过滤
-            if not name or not ticker:
-                continue
-            out.append(CompanyTarget(name=str(name), ticker=str(ticker)))
-        return out
-
     async def run(self, classification: ClassificationResult) -> str:
         sector: Optional[str] = classification.sector
         if not sector:
@@ -171,8 +91,13 @@ class SectorLandscapeStrategy:
             self.gpt_researcher, self._level1_queries(sector)
         )
 
-        # ---------- 玩家解析(三层防御)----------
-        players = await self._extract_players(level1_ctx, sector)
+        # ---------- 玩家解析(三层防御,共享 parser)----------
+        players = await parse_company_list(
+            self.gpt_researcher.cfg,
+            text=level1_ctx,
+            scope_label=f"the {sector} industry",
+            max_n=5,
+        )
 
         if not players:
             # 第 3 层:降级,只用 Level 1 出报告

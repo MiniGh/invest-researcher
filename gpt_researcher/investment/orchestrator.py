@@ -1,13 +1,15 @@
 """L1 树编排器 —— Slice 3.2 起 depth-2 形态。
 
 按 L0-A classification.label dispatch 到对应 Strategy 实例。
-Slice 3.2 起 strategies dict 注册 4 个 strategy:
-- company_profile      (Slice 2b/3.1 已实现,depth-1 平面)
-- company_comparison   (Slice 3.2 新增,classifier 直接给 companies,depth-2 单批)
-- sector_landscape     (Slice 3.2 新增,depth-2 两步搜索:Level 1 → 玩家解析 → Level 2)
+Slice 3.3 起 strategies dict 注册 6 个 strategy:
+- company_profile      (Slice 2b/3.1,depth-1 平面)
+- company_comparison   (Slice 3.2,classifier 直接给 companies,depth-2 单批)
+- sector_landscape     (Slice 3.2,depth-2 两步搜索:Level 1 → 玩家解析 → Level 2)
+- value_chain          (Slice 3.3,depth-3 两层 bootstrap:拆环节 → 每环节龙头 → mini)
+- theme_analysis       (Slice 3.3,depth-3 两层 bootstrap:拆类别 → 每类代表股 → mini)
 - 其他                  (Slice 3.0 vanilla 兜底)
 
-depth-2 strategies 用 ExplicitQueryResearchConductor 跳过 gpt-researcher 默认的
+depth-2/3 strategies 用 ExplicitQueryResearchConductor 跳过 gpt-researcher 默认的
 LLM sub-query 拆解,保留下游 retrieve/scrape/summarize 全套机制。
 """
 import logging
@@ -17,6 +19,8 @@ from .strategies import (
     CompanyComparisonStrategy,
     CompanyProfileStrategy,
     SectorLandscapeStrategy,
+    ThemeAnalysisStrategy,
+    ValueChainStrategy,
     VanillaStrategy,
 )
 
@@ -33,6 +37,7 @@ class Orchestrator:
         - CompanyProfileStrategy:gpt_researcher + filing_finder + extractor
         - CompanyComparisonStrategy:gpt_researcher + extractor(不调 filing_finder,见 prepare/11 已知限制)
         - SectorLandscapeStrategy:gpt_researcher + extractor(mini mode,跳 filing)
+        - ValueChainStrategy / ThemeAnalysisStrategy:gpt_researcher + extractor(mini mode,depth-3)
         - VanillaStrategy:gpt_researcher only
         """
         self.strategies = {
@@ -46,6 +51,14 @@ class Orchestrator:
                 extractor=extractor,
             ),
             "sector_landscape": SectorLandscapeStrategy(
+                gpt_researcher=gpt_researcher,
+                extractor=extractor,
+            ),
+            "value_chain": ValueChainStrategy(
+                gpt_researcher=gpt_researcher,
+                extractor=extractor,
+            ),
+            "theme_analysis": ThemeAnalysisStrategy(
                 gpt_researcher=gpt_researcher,
                 extractor=extractor,
             ),

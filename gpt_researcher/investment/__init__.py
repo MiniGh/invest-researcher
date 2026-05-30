@@ -1,4 +1,5 @@
 from .b_classifier import FINANCE_WHITELIST, classify_subquery
+from .bootstrap_parsers import parse_company_list, parse_string_list
 from .classifier import ClassificationResult, QueryClassifier
 from .explicit_research_conductor import (
     ExplicitQueryResearchConductor,
@@ -18,12 +19,16 @@ from .strategies import (
     CompanyComparisonStrategy,
     CompanyProfileStrategy,
     SectorLandscapeStrategy,
+    ThemeAnalysisStrategy,
+    ValueChainStrategy,
     VanillaStrategy,
 )
 from .writing_prompts import (
     WRITING_PROMPT_COMPANY_COMPARISON,
     WRITING_PROMPT_COMPANY_PROFILE,
     WRITING_PROMPT_SECTOR_LANDSCAPE,
+    WRITING_PROMPT_THEME_ANALYSIS,
+    WRITING_PROMPT_VALUE_CHAIN,
 )
 
 __all__ = [
@@ -52,4 +57,11 @@ __all__ = [
     "SectorLandscapeStrategy",
     "WRITING_PROMPT_COMPANY_COMPARISON",
     "WRITING_PROMPT_SECTOR_LANDSCAPE",
+    # Slice 3.3
+    "parse_string_list",
+    "parse_company_list",
+    "ValueChainStrategy",
+    "ThemeAnalysisStrategy",
+    "WRITING_PROMPT_VALUE_CHAIN",
+    "WRITING_PROMPT_THEME_ANALYSIS",
 ]

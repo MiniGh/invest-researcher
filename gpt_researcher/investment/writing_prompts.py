@@ -153,6 +153,105 @@ Hard constraints:
 """
 
 
-# 未来扩展点(Slice 3.3 上完 5 全标签时填):
-# WRITING_PROMPT_VALUE_CHAIN = """..."""           # 产业链纵切
-# WRITING_PROMPT_THEME_ANALYSIS = """..."""        # 主题/赛道
+WRITING_PROMPT_VALUE_CHAIN = """\
+You are writing a value-chain (vertical) analysis of a single US industry. The
+provided context is gathered in three layers:
+  - Layer 1: a decomposition of the industry value chain into segments
+    (upstream / midstream / downstream). Look for a line
+    "## Value-chain segments identified: ..." listing the segments.
+  - Layer 2: per-segment content — segment economics (value capture, margin
+    profile, capital intensity), bottlenecks / chokepoints / supply constraints.
+  - Layer 3: per-segment representative US-listed companies, each with a
+    structured mini-snapshot (revenue / yoy growth / gross margin) rendered as
+    a markdown table under "### {{segment}} — representative companies".
+
+Structure the report by walking DOWN the value chain, segment by segment:
+
+1. **Value-chain map** — lay out the segments in order (upstream → midstream →
+   downstream) and what each does. Use the segment list from Layer 1 as the
+   skeleton. One paragraph or a compact table.
+
+2. **Segment-by-segment analysis** — for EACH identified segment, an H2/H3
+   sub-section that MUST cover:
+   - **Economics**: value capture, margin profile, capital intensity — cite
+     numbers with inline source URLs.
+   - **Bottlenecks / chokepoints**: where supply is constrained or where one
+     player holds pricing power.
+   - **Representative companies**: for each US-listed leader surfaced in Layer 3,
+     write the company's role in this segment plus its financial snapshot
+     (revenue / yoy growth / gross margin, inline source URLs). If a specific
+     number is missing, write "Data not available in current sources" for that
+     field only; do not skip the company. If a segment has NO US-listed leader
+     in the context (common for raw-material / foreign-dominated links), say so
+     in one line and keep the qualitative economics/bottleneck text — do not
+     drop the segment.
+
+3. **Where value concentrates** — across the whole chain, which segment(s)
+   capture the most economic profit and why (chokepoints, IP, scale, switching
+   costs). This is the analytical payoff of a value-chain study.
+
+4. **Forward outlook** — structural shifts, reshoring / vertical-integration
+   moves, regulatory or technological inflection points that could re-route
+   value between segments.
+
+Hard constraints:
+- Use figures ONLY when they appear in the provided context. Never fabricate.
+- For every cited number, include the source URL inline (markdown link).
+- Keep section numbering exactly as 1, 2, 3, 4 above.
+- Cover EVERY segment from the Layer 1 list; do not silently drop a segment
+  just because its company cards are sparse.
+- Avoid hype, PR language, and price predictions.
+- Total length target: 1600-2400 words.
+- Section headings as H2; per-segment blocks and company cards as H3.
+"""
+
+
+WRITING_PROMPT_THEME_ANALYSIS = """\
+You are writing a thematic (investment-narrative) analysis of a single theme.
+The provided context is gathered in three layers:
+  - Layer 1: the driving narrative + catalysts, time horizon + milestones, and
+    thesis-invalidating risks of the theme.
+  - Layer 2: benefit categories — the TYPES of companies that benefit, grouped
+    by mechanism of exposure. Look for a line
+    "## Benefit categories identified: ..." listing the categories.
+  - Layer 3: per-category representative US-listed stocks, each with a
+    structured mini-snapshot (revenue / yoy growth / gross margin) rendered as
+    a markdown table under "### {{category}} — most leveraged stocks".
+
+Structure:
+
+1. **Thesis and catalysts** — what is the theme, why now, what concrete
+   catalysts are driving it. Cite numbers with inline source URLs.
+
+2. **How the value flows — benefit categories** — for EACH category from
+   Layer 2, an H3 sub-section that MUST cover:
+   - **Mechanism of exposure**: WHY this category benefits — how value is
+     transmitted from the theme to these companies (direct demand, pricing
+     power, volume, picks-and-shovels, etc.).
+   - **Representative stocks**: for each US-listed stock surfaced in Layer 3,
+     its exposure to the theme (revenue share / strategic positioning) plus its
+     financial snapshot (revenue / yoy growth / gross margin, inline source
+     URLs). If a number is missing, write "Data not available in current
+     sources" for that field only; do not skip the stock. If a category has NO
+     US-listed stock in the context, say so in one line and keep the mechanism
+     paragraph — do not drop the category.
+
+3. **Time horizon and milestones** — over what timeframe the theme plays out;
+   the concrete milestones a reader should watch.
+
+4. **Risks that invalidate the thesis** — be specific about what would break
+   the theme (substitution, regulation, demand air-pocket, over-supply).
+
+5. **Forward outlook** — net read: where the theme is most/least de-risked, and
+   which category offers the cleanest exposure (without a buy/sell call).
+
+Hard constraints:
+- Use figures ONLY when they appear in the provided context. Never fabricate.
+- For every cited number, include the source URL inline (markdown link).
+- Keep section numbering exactly as 1, 2, 3, 4, 5 above.
+- Cover EVERY category from the Layer 2 list; do not silently drop a category.
+- Stocks must be US-listed (the upstream pipeline already filters for this).
+- Avoid hype, PR language, and price predictions.
+- Total length target: 1600-2400 words.
+- Section headings as H2; per-category blocks and stock cards as H3.
+"""
