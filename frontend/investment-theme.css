@@ -1,0 +1,799 @@
+/* ============================================================================
+   研市 ResearchDesk —— fork 私有主题
+   ----------------------------------------------------------------------------
+   加载顺序:styles.css(上游)→ 本文件。只做"覆盖",不改上游文件,
+   这样日后 rebase 上游时冲突面最小(与 gpt_researcher/investment/ 同一隔离思路)。
+
+   视觉基调:专业金融终端 —— 深色底、克制的青色强调、数字用等宽字体、
+   信息密度高于装饰性。目标是让人一眼判断"这是个金融/投研工具"。
+   ========================================================================= */
+
+:root {
+    /* 底色:由深到浅的三级表面 */
+    --rd-bg: #0a0e17;
+    --rd-surface: #111726;
+    --rd-surface-2: #171f31;
+    --rd-border: #222c42;
+    --rd-border-strong: #2e3a54;
+
+    /* 文字 */
+    --rd-text: #e6ecf5;
+    --rd-text-dim: #93a1bd;
+    --rd-text-faint: #64748b;
+
+    /* 强调色:青(主)/ 琥珀(警示)/ 绿(确认)/ 红(风险) */
+    --rd-accent: #2dd4bf;
+    --rd-accent-deep: #14b8a6;
+    --rd-accent-glow: rgba(45, 212, 191, 0.14);
+    --rd-amber: #f0b429;
+    --rd-amber-glow: rgba(240, 180, 41, 0.13);
+    --rd-red: #f2555a;
+
+    /* 等宽字体:代号、数字、标签 —— 金融终端的关键质感 */
+    --rd-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+
+    --rd-radius: 10px;
+    --rd-radius-sm: 6px;
+}
+
+/* ---------------------------------------------------------------- 基础层 */
+
+/* 上游用的是 45° 动态渐变(偏"科技感 demo"),换成沉稳的静态深色底 */
+html,
+body {
+    background: var(--rd-bg) !important;
+    color: var(--rd-text);
+}
+
+/* 上游在 body::before 铺了一层装饰渐变,压掉它避免颜色打架 */
+body::before {
+    background: radial-gradient(1200px 600px at 50% -10%, rgba(45, 212, 191, 0.06), transparent 70%) !important;
+    opacity: 1 !important;
+}
+
+::selection {
+    background: var(--rd-accent-glow);
+    color: var(--rd-text);
+}
+
+/* ---------------------------------------------------------------- 首屏 */
+
+.landing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 78vh;
+    padding: 40px 20px;
+}
+
+.hero {
+    max-width: 760px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.hero-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 6px;
+}
+
+/* 品牌标记:一个简化的"K 线/柱状"图形,纯 CSS,不依赖图片资源 */
+.hero-mark {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 7px;
+    background:
+        linear-gradient(to top, var(--rd-accent) 0 38%, transparent 38%) 2px bottom / 6px 62% no-repeat,
+        linear-gradient(to top, var(--rd-accent) 0 78%, transparent 78%) 11px bottom / 6px 100% no-repeat,
+        linear-gradient(to top, var(--rd-amber) 0 55%, transparent 55%) 20px bottom / 6px 84% no-repeat,
+        var(--rd-surface-2);
+    border: 1px solid var(--rd-border-strong);
+}
+
+.hero-name {
+    font-size: 46px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin: 0;
+    color: var(--rd-text);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.hero-name-en {
+    font-family: var(--rd-mono);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 1.5px;
+    color: var(--rd-accent);
+    text-transform: uppercase;
+}
+
+.hero-tagline {
+    font-size: 17px;
+    color: var(--rd-text-dim);
+    letter-spacing: 3px;
+    margin: 0 0 22px;
+}
+
+/* 首屏事实行:不抒情,直接报数。数字用等宽 + 强调色,是全页视觉重心之一。 */
+.hero-facts {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 0 auto 32px;
+    font-size: 14.5px;
+    color: var(--rd-text-dim);
+    letter-spacing: 0.5px;
+}
+
+.hero-facts .fact b {
+    font-family: var(--rd-mono);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--rd-accent);
+    margin: 0 2px;
+}
+
+.fact-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--rd-border-strong);
+    flex: none;
+}
+
+/* 5 类能力芯片:首屏就把"它懂什么"摊开 */
+.hero-caps {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 9px;
+    margin-bottom: 34px;
+}
+
+.cap-chip {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--rd-border-strong);
+    background: var(--rd-surface);
+    color: var(--rd-text-dim);
+    letter-spacing: 0.5px;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.cap-chip:hover {
+    border-color: var(--rd-accent);
+    color: var(--rd-accent);
+}
+
+.hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 30px;
+    border-radius: var(--rd-radius);
+    background: var(--rd-accent-deep);
+    color: #04120f;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 1px;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.hero-cta:hover {
+    background: var(--rd-accent);
+    color: #04120f;
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
+/* ---------------------------------------------------------------- 提问区 */
+
+.container#form {
+    max-width: 940px;
+}
+
+.ask-group {
+    background: var(--rd-surface);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius);
+    padding: 22px 22px 18px;
+    margin-bottom: 14px;
+}
+
+.ask-label {
+    display: block;
+    font-size: 17px !important;
+    font-weight: 700;
+    color: var(--rd-text) !important;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+}
+
+#task.form-control {
+    background: var(--rd-bg);
+    border: 1px solid var(--rd-border-strong);
+    border-radius: var(--rd-radius-sm);
+    color: var(--rd-text);
+    font-size: 15px;
+    padding: 12px 14px;
+    min-height: 52px;
+    line-height: 1.6;
+}
+
+#task.form-control::placeholder {
+    color: var(--rd-text-faint);
+}
+
+#task.form-control:focus {
+    border-color: var(--rd-accent);
+    box-shadow: 0 0 0 3px var(--rd-accent-glow);
+    background: var(--rd-bg);
+    color: var(--rd-text);
+}
+
+/* 示例问题:面试演示时点一下即可,不用现场打字 */
+.examples {
+    margin-top: 16px;
+}
+
+.examples-hint {
+    display: block;
+    font-size: 12px;
+    color: var(--rd-text-faint);
+    margin-bottom: 9px;
+    letter-spacing: 0.5px;
+}
+
+.examples-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.example-chip {
+    position: relative;
+    font-size: 13px;
+    padding: 7px 13px;
+    border-radius: var(--rd-radius-sm);
+    border: 1px dashed var(--rd-border-strong);
+    background: transparent;
+    color: var(--rd-text-dim);
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.example-chip:hover {
+    border-style: solid;
+    border-color: var(--rd-accent);
+    color: var(--rd-accent);
+    background: var(--rd-accent-glow);
+}
+
+/* hover 时提示这条会被路由到哪一类,把分类能力做成可感知的 */
+.example-chip::after {
+    content: attr(data-cap);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 7px);
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 11px;
+    font-family: var(--rd-mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--rd-surface-2);
+    border: 1px solid var(--rd-border-strong);
+    color: var(--rd-accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s;
+}
+
+.example-chip:hover::after {
+    opacity: 1;
+}
+
+.ask-submit#submitButton {
+    display: block;
+    width: 100%;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    border: none;
+    border-radius: var(--rd-radius);
+    background: var(--rd-accent-deep) !important;
+    color: #04120f !important;
+    background-image: none !important;
+    transition: background 0.2s;
+}
+
+.ask-submit#submitButton:hover {
+    background: var(--rd-accent) !important;
+}
+
+/* ---------------------------------------------------------- 高级设置折叠 */
+
+.advanced {
+    margin: 10px 0 28px;
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius);
+    background: var(--rd-surface);
+    overflow: hidden;
+}
+
+.advanced-summary {
+    cursor: pointer;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--rd-text-dim);
+    list-style: none;
+    user-select: none;
+    letter-spacing: 0.5px;
+}
+
+.advanced-summary::-webkit-details-marker {
+    display: none;
+}
+
+.advanced-summary:hover {
+    color: var(--rd-accent);
+}
+
+.advanced[open] .advanced-summary {
+    border-bottom: 1px solid var(--rd-border);
+}
+
+.advanced-body {
+    padding: 18px;
+}
+
+.advanced-body .form-control {
+    background: var(--rd-bg);
+    border: 1px solid var(--rd-border-strong);
+    color: var(--rd-text);
+    border-radius: var(--rd-radius-sm);
+}
+
+.advanced-body .agent-question,
+.advanced-body .form-label {
+    font-size: 13px !important;
+    color: var(--rd-text-dim) !important;
+    font-weight: 600;
+}
+
+.advanced-body .text-muted {
+    color: var(--rd-text-faint) !important;
+    font-size: 11.5px;
+}
+
+/* --------------------------------------------------------------- 面板通用 */
+
+.margin-div {
+    background: var(--rd-surface);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius);
+    padding: 20px 22px;
+    margin-bottom: 16px;
+}
+
+.margin-div h2 {
+    font-size: 16px !important;
+    font-weight: 700;
+    color: var(--rd-text);
+    letter-spacing: 1px;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.margin-div h2 i {
+    color: var(--rd-accent);
+    font-size: 14px;
+}
+
+.panel-sub {
+    font-size: 12px;
+    color: var(--rd-text-faint);
+    margin: 0 0 16px;
+}
+
+/* ====================================================== 研究计划面板(核心) */
+
+.plan-container {
+    border-color: var(--rd-border-strong);
+}
+
+/* --- 路由决策:识别为哪一类 --- */
+
+.plan-route {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--rd-radius-sm);
+    background: var(--rd-surface-2);
+    border: 1px solid var(--rd-border-strong);
+    margin-bottom: 16px;
+}
+
+.route-key {
+    font-size: 12px;
+    color: var(--rd-text-faint);
+    letter-spacing: 1px;
+}
+
+.route-badge {
+    font-size: 14px;
+    font-weight: 700;
+    padding: 5px 14px;
+    border-radius: var(--rd-radius-sm);
+    background: var(--rd-accent-glow);
+    border: 1px solid var(--rd-accent);
+    color: var(--rd-accent);
+    letter-spacing: 0.5px;
+}
+
+.route-badge.is-fallback {
+    background: var(--rd-amber-glow);
+    border-color: var(--rd-amber);
+    color: var(--rd-amber);
+}
+
+.route-code {
+    font-family: var(--rd-mono);
+    font-size: 11.5px;
+    color: var(--rd-text-faint);
+}
+
+.route-subject {
+    font-size: 14px;
+    color: var(--rd-text);
+    padding-left: 12px;
+    border-left: 1px solid var(--rd-border-strong);
+}
+
+.route-subject .route-key {
+    margin-right: 7px;
+}
+
+/* --- 逐层展开 --- */
+
+.plan-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.plan-level {
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    background: var(--rd-bg);
+    overflow: hidden;
+}
+
+.level-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--rd-surface-2);
+    border-bottom: 1px solid var(--rd-border);
+}
+
+.level-tag {
+    font-family: var(--rd-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--rd-accent);
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--rd-accent-glow);
+    flex: none;
+}
+
+.level-desc {
+    font-size: 13px;
+    color: var(--rd-text-dim);
+    flex: 1;
+}
+
+.level-count {
+    font-family: var(--rd-mono);
+    font-size: 11.5px;
+    color: var(--rd-text-faint);
+    flex: none;
+}
+
+/* 节点行:一个产业链环节 / 一个受益类别 / 一家公司 */
+.plan-nodes {
+    display: flex;
+    flex-direction: column;
+}
+
+.plan-node {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(34, 44, 66, 0.5);
+}
+
+.plan-node:last-child {
+    border-bottom: none;
+}
+
+.node-name {
+    font-size: 13.5px;
+    color: var(--rd-text);
+    min-width: 190px;
+    flex: none;
+}
+
+.node-name::before {
+    content: "▸";
+    color: var(--rd-accent);
+    margin-right: 8px;
+    font-size: 11px;
+}
+
+/* 美股代号:等宽 + 徽章,金融终端的招牌元素 */
+.node-tickers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ticker {
+    font-family: var(--rd-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--rd-surface-2);
+    border: 1px solid var(--rd-border-strong);
+    color: var(--rd-text);
+}
+
+.node-empty {
+    font-size: 12px;
+    color: var(--rd-text-faint);
+    font-style: italic;
+}
+
+/* --- 汇总统计 --- */
+
+.plan-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rd-border);
+}
+
+.stat {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+}
+
+.stat-num {
+    font-family: var(--rd-mono);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--rd-accent);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--rd-text-faint);
+}
+
+.plan-warn {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--rd-amber);
+    background: var(--rd-amber-glow);
+    border: 1px solid rgba(240, 180, 41, 0.3);
+    border-radius: var(--rd-radius-sm);
+    padding: 10px 13px;
+}
+
+/* -------------------------------------------------------------- 执行日志 */
+
+#output {
+    max-height: 320px;
+    overflow-y: auto;
+    background: var(--rd-bg);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    padding: 12px 14px;
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: var(--rd-text-dim);
+}
+
+#output .agent_response {
+    background: transparent;
+    color: var(--rd-text-dim);
+    padding: 2px 0;
+    margin: 0;
+    border: none;
+    font-family: var(--rd-mono);
+    font-size: 12px;
+}
+
+#output::-webkit-scrollbar {
+    width: 8px;
+}
+
+#output::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#output::-webkit-scrollbar-thumb {
+    background: var(--rd-border-strong);
+    border-radius: 4px;
+}
+
+/* -------------------------------------------------------------- 研究报告 */
+
+#reportContainer {
+    color: var(--rd-text);
+    font-size: 15px;
+    line-height: 1.9;
+}
+
+#reportContainer h1,
+#reportContainer h2,
+#reportContainer h3 {
+    color: var(--rd-text);
+    border-bottom: 1px solid var(--rd-border);
+    padding-bottom: 8px;
+    margin-top: 28px;
+}
+
+#reportContainer h3 {
+    border-bottom: none;
+    color: var(--rd-accent);
+    font-size: 16px;
+}
+
+#reportContainer a {
+    color: var(--rd-accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--rd-accent);
+}
+
+#reportContainer table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 13px;
+}
+
+#reportContainer th {
+    background: var(--rd-surface-2);
+    color: var(--rd-text);
+    font-weight: 700;
+    text-align: left;
+    padding: 9px 12px;
+    border: 1px solid var(--rd-border-strong);
+}
+
+#reportContainer td {
+    padding: 9px 12px;
+    border: 1px solid var(--rd-border);
+    color: var(--rd-text-dim);
+    font-family: var(--rd-mono);
+    font-size: 12.5px;
+}
+
+#reportContainer blockquote {
+    border-left: 3px solid var(--rd-amber);
+    background: var(--rd-amber-glow);
+    padding: 10px 16px;
+    margin: 16px 0;
+    color: var(--rd-text-dim);
+}
+
+/* ---------------------------------------------------------------- 页脚 */
+
+footer {
+    text-align: center;
+    padding: 40px 20px 30px;
+    border-top: 1px solid var(--rd-border);
+    margin-top: 40px;
+}
+
+.footer-brand {
+    font-size: 13px;
+    color: var(--rd-text-dim);
+    letter-spacing: 1.5px;
+    margin-bottom: 8px;
+}
+
+.footer-note {
+    font-size: 12px;
+    color: var(--rd-text-faint);
+    margin-bottom: 6px;
+}
+
+.footer-credit {
+    font-size: 11.5px;
+    color: var(--rd-text-faint);
+}
+
+footer a {
+    color: var(--rd-text-dim);
+    text-decoration: underline;
+}
+
+footer a:hover {
+    color: var(--rd-accent);
+}
+
+/* ------------------------------------------------------- 顶部按钮 / 面板 */
+
+.top-websocket-button,
+.top-history-button {
+    background: var(--rd-surface) !important;
+    border: 1px solid var(--rd-border-strong) !important;
+    color: var(--rd-text-dim) !important;
+    font-size: 12.5px;
+    border-radius: var(--rd-radius-sm);
+    padding: 7px 13px;
+    cursor: pointer;
+}
+
+.top-websocket-button:hover,
+.top-history-button:hover {
+    border-color: var(--rd-accent) !important;
+    color: var(--rd-accent) !important;
+}
+
+/* ---------------------------------------------------------------- 响应式 */
+
+@media (max-width: 700px) {
+    .hero-name {
+        font-size: 34px;
+        flex-direction: column;
+        gap: 4px;
+        align-items: center;
+    }
+
+    .plan-node {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 7px;
+    }
+
+    .node-name {
+        min-width: 0;
+    }
+
+    .route-subject {
+        padding-left: 0;
+        border-left: none;
+    }
+}

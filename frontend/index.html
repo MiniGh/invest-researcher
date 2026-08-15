@@ -2,8 +2,8 @@
 <html lang="en">
 
 <head>
-    <title>GPT Researcher</title>
-    <meta name="description" content="A research assistant powered by GPT-4">
+    <title>研市 ResearchDesk · 美股基本面研究助手</title>
+    <meta name="description" content="研市 ResearchDesk —— 自动拆解投研问题、检索美股基本面信息、生成带引用的研究报告">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="./static/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +12,9 @@
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/site/styles.css" />
+    <!-- fork 私有主题:品牌 + 金融终端视觉 + 研究计划面板。放在 styles.css 之后覆盖上游样式,
+         便于日后 rebase 上游时冲突最小化(同 gpt_researcher/investment/ 的隔离思路)。 -->
+    <link rel="stylesheet" href="/site/investment-theme.css" />
     <style>
         .avatar {
             width: 80px;
@@ -77,159 +80,165 @@
     <!-- Navigation Buttons (moved from top bar) -->
     <div class="nav-buttons">
         <div id="websocketPanelOpenBtn" class="top-websocket-button">
-            <i class="fas fa-network-wired"></i> Status
+            <i class="fas fa-network-wired"></i> 连接
         </div>
         <div id="historyPanelOpenBtn" class="top-history-button">
-            <i class="fas fa-history"></i> History
+            <i class="fas fa-history"></i> 历史
         </div>
     </div>
 
     <!-- WebSocket Status Panel -->
     <div class="websocket-panel" id="websocketPanel">
         <div class="websocket-panel-header">
-            <h3><i class="fas fa-plug"></i> Connection Status</h3>
+            <h3><i class="fas fa-plug"></i> 连接状态</h3>
             <div class="websocket-panel-actions">
-                <button id="websocketPanelToggle" class="websocket-action-btn" title="Close panel">
+                <button id="websocketPanelToggle" class="websocket-action-btn" title="关闭面板">
                     <i class="fas fa-chevron-left"></i>
                 </button>
             </div>
         </div>
         <div class="websocket-status">
             <div class="status-item">
-                <span class="status-label">Connection:</span>
+                <span class="status-label">连接:</span>
                 <span class="status-value" id="connectionStatus">Disconnected</span>
                 <span class="status-indicator" id="connectionIndicator"></span>
             </div>
             <div class="status-item">
-                <span class="status-label">Research:</span>
+                <span class="status-label">研究:</span>
                 <span class="status-value" id="researchStatus">Inactive</span>
             </div>
             <div class="status-item">
-                <span class="status-label">Connected for:</span>
+                <span class="status-label">已连接:</span>
                 <span class="status-value" id="connectionDuration">-</span>
             </div>
             <div class="status-item">
-                <span class="status-label">Last activity:</span>
+                <span class="status-label">最后活动:</span>
                 <span class="status-value" id="lastActivity">-</span>
             </div>
             <div class="status-item">
-                <span class="status-label">ReadyState:</span>
+                <span class="status-label">连接态:</span>
                 <span class="status-value" id="readyState">-</span>
             </div>
             <div class="status-divider"></div>
             <div class="status-item">
-                <span class="status-label">Connection attempts:</span>
+                <span class="status-label">连接尝试:</span>
                 <span class="status-value" id="connectionAttempts">0</span>
             </div>
             <div class="status-item">
-                <span class="status-label">Messages received:</span>
+                <span class="status-label">收到消息:</span>
                 <span class="status-value" id="messagesReceived">0</span>
             </div>
             <div class="status-divider"></div>
             <div class="status-item">
-                <span class="status-label">Current task:</span>
+                <span class="status-label">当前任务:</span>
                 <span class="status-value" id="currentTask">-</span>
             </div>
         </div>
     </div>
 
     <section class="landing">
-        <div class="max-w-5xl mx-auto text-center">
-            <h1 class="text-4xl font-extrabold mx-auto lg:text-7xl">
-                Say Goodbye to <br>
-                <span
-                    style="background-image:linear-gradient(to right, #9867F0, #ED4E50); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Hours
-                    of Research</span>
-            </h1>
-            <p class="max-w-6xl mx-auto text-gray-600 mt-8" style="font-size:20px">
-                Say Hello to <b>GPT Researcher</b>, your AI mate for rapid insights and comprehensive research. <br>
-                GPT Researcher takes care of everything from accurate source gathering and organization of research results to generation of customized reports with citations.
+        <div class="hero">
+            <!-- BRAND(共 3 处:<title> / 此处 / 页脚)——改名字搜 "BRAND" 即可 -->
+            <div class="hero-brand">
+                <span class="hero-mark" aria-hidden="true"></span>
+                <h1 class="hero-name">研市<span class="hero-name-en">ResearchDesk</span></h1>
+            </div>
+            <p class="hero-tagline">美股基本面研究助手</p>
+            <p class="hero-facts">
+                <span class="fact"><b>5</b> 类问题</span>
+                <span class="fact-dot"></span>
+                <span class="fact">最深 <b>3</b> 层拆解</span>
+                <span class="fact-dot"></span>
+                <span class="fact">句句带出处</span>
             </p>
-            <a href="#form" class="btn btn-primary">Start Researching</a>
+
+            <!-- 5 类问题 = L0-A 标签集合。首屏亮出来,让人一眼知道它"懂"什么 -->
+            <div class="hero-caps">
+                <span class="cap-chip" data-label="company_profile">公司画像</span>
+                <span class="cap-chip" data-label="company_comparison">公司对比</span>
+                <span class="cap-chip" data-label="sector_landscape">行业横切</span>
+                <span class="cap-chip" data-label="value_chain">产业链纵切</span>
+                <span class="cap-chip" data-label="theme_analysis">主题受益</span>
+            </div>
+
+            <a href="#form" class="hero-cta">开始研究 <i class="fas fa-arrow-down"></i></a>
         </div>
     </section>
 
     <main class="container" id="form">
-        <div class="agent-item"><img src="/static/gptr-logo.png" class="avatar" alt="Auto Agent"></div>
         <form method="POST" class="mt-3" id="researchForm">
-            <div class="form-group">
-                <label for="task" class="agent-question">What would you like me to research next?</label>
-                <textarea id="task" name="task" class="form-control highlight-connection" placeholder="Enter any topic, question, or idea..." required autocomplete="on"></textarea>
+            <div class="form-group ask-group">
+                <label for="task" class="agent-question ask-label">想研究什么?</label>
+                <textarea id="task" name="task" class="form-control highlight-connection" placeholder="例:分析英伟达最新季度财务表现 / 美国半导体产业链拆解 / 哪些美股受益于 AI 基建" required autocomplete="on"></textarea>
                 <input type="radio" name="agent" id="autoAgent" value="Auto Agent" checked hidden>
-            </div>
-            <div class="form-group">
-                <div class="row">
 
-
+                <!-- 示例问题:每条对应一个 L0-A 标签,点击填入。检索用英文(英文源覆盖更好),
+                     标签用中文标注它会被路由到哪一类。 -->
+                <div class="examples">
+                    <span class="examples-hint">示例问题(点击填入):</span>
+                    <div class="examples-list">
+                        <button type="button" class="example-chip" data-cap="公司画像"
+                            data-query="Analyze NVIDIA's latest quarterly financial performance">英伟达最新季度财务</button>
+                        <button type="button" class="example-chip" data-cap="公司对比"
+                            data-query="Compare NVDA, AMD and INTC in terms of AI chip strategy and recent financials">NVDA / AMD / INTC 对比</button>
+                        <button type="button" class="example-chip" data-cap="行业横切"
+                            data-query="Give me a landscape of the US EV battery industry">美国电动车电池行业格局</button>
+                        <button type="button" class="example-chip" data-cap="产业链纵切"
+                            data-query="Analyze the value chain of the US semiconductor industry from upstream to downstream">美国半导体产业链拆解</button>
+                        <button type="button" class="example-chip" data-cap="主题受益"
+                            data-query="Which US-listed stocks are the biggest beneficiaries of the AI infrastructure investment theme?">AI 基建受益股</button>
+                    </div>
                 </div>
+            </div>
+
+            <button type="submit" value="开始研究" class="btn btn-primary button-padding ask-submit" id="submitButton">开始研究</button>
+
+            <!-- 高级设置:引擎参数收在这里,默认折叠。主界面只保留"问一个问题"这一件事。 -->
+            <details class="advanced">
+                <summary class="advanced-summary"><i class="fas fa-sliders-h"></i> 高级设置</summary>
+                <div class="advanced-body">
+            <div class="form-group">
                 <button type="button" id="btnShowAuto" class="btn btn-secondary mt-3 btn-show">Auto Agent</button>
             </div>
             <div class="form-group">
-                <label for="report_type" class="agent-question">What type of report would you like me to
-                    generate?</label>
+                <label for="report_type" class="agent-question">报告类型</label>
                 <select name="report_type" id="report_type" class="form-control highlight-connection" required>
-                    <option value="research_report">Summary - Short and fast (~2 min)</option>
-                    <option value="detailed_report">Detailed - In depth and longer (~5 min)</option>
-                    <option value="resource_report">Resource Report</option>
-                    <option value="deep">Deep Research</option>
+                    <option value="research_report">标准 —— 较快(~2 分钟)</option>
+                    <option value="detailed_report">详尽 —— 更深更长(~5 分钟)</option>
+                    <option value="resource_report">资料清单</option>
+                    <option value="deep">深度研究</option>
                 </select>
             </div>
             <div class="form-group">
-                <label for="tone" class="agent-question">In which tone would you like the report to be
-                    generated?</label>
+                <label for="tone" class="agent-question">报告语气</label>
                 <select name="tone" id="tone" class="form-control highlight-connection" required>
-                    <option value="Objective">Objective - Impartial and unbiased presentation of facts and findings
-                    </option>
-                    <option value="Formal">Formal - Adheres to academic standards with sophisticated language and
-                        structure</option>
-                    <option value="Analytical">Analytical - Critical evaluation and detailed examination of data and
-                        theories</option>
-                    <option value="Persuasive">Persuasive - Convincing the audience of a particular viewpoint or
-                        argument</option>
-                    <option value="Informative">Informative - Providing clear and comprehensive information on a topic
-                    </option>
-                    <option value="Explanatory">Explanatory - Clarifying complex concepts and processes</option>
-                    <option value="Descriptive">Descriptive - Detailed depiction of phenomena, experiments, or case
-                        studies</option>
-                    <option value="Critical">Critical - Judging the validity and relevance of the research and its
-                        conclusions</option>
-                    <option value="Comparative">Comparative - Juxtaposing different theories, data, or methods to
-                        highlight differences and similarities</option>
-                    <option value="Speculative">Speculative - Exploring hypotheses and potential implications or future
-                        research directions</option>
-                    <option value="Reflective">Reflective - Considering the research process and personal insights or
-                        experiences</option>
-                    <option value="Narrative">Narrative - Telling a story to illustrate research findings or
-                        methodologies</option>
-                    <option value="Humorous">Humorous - Light-hearted and engaging, usually to make the content more
-                        relatable</option>
-                    <option value="Optimistic">Optimistic - Highlighting positive findings and potential benefits
-                    </option>
-                    <option value="Pessimistic">Pessimistic - Focusing on limitations, challenges, or negative outcomes
-                    </option>
+                    <!-- 上游 Tone 枚举有 15 项,这里只保留投研场景成立的 3 项。
+                         删掉的(说服/乐观/悲观/幽默/叙事等)会主动给研究结论加倾向,
+                         与本项目"不编数字、不做价格预测"的输出纪律冲突。 -->
+                    <option value="Analytical" selected>分析型 —— 批判性评估、细查数据(默认)</option>
+                    <option value="Objective">中立型 —— 不带倾向地陈述事实</option>
+                    <option value="Formal">正式型 —— 学术规范的书面表达</option>
                 </select>
             </div>
             <div class="form-group">
-                <label for="report_source" class="agent-question">What sources would you like me to research
-                    from?</label>
-                <p class="text-left mt-0 pt-0" style="font-size: 0.7rem;">You can now do research on local documents as
-                    well. Please make sure to add the DOC_PATH env variable pointing to your documents folder.</p>
+                <label for="report_source" class="agent-question">资料来源</label>
                 <select name="report_source" id="report_source" class="form-control highlight-connection" required>
-                    <option value="web">The Web</option>
-                    <option value="local">My Documents</option>
-                    <option value="hybrid">Hybrid</option>
-                    <option value="azure">Azure storage</option>
+                    <option value="web">全网检索</option>
+                    <option value="local">本地文档</option>
+                    <option value="hybrid">混合</option>
+                    <option value="azure">Azure 存储</option>
                 </select>
+                <small class="text-muted">本地文档需先设置 DOC_PATH 环境变量指向文档目录</small>
             </div>
             <div class="form-group">
-                <label for="maxSearchResults" class="agent-question">How many websites should be scraped per query?</label>
+                <label for="maxSearchResults" class="agent-question">每条检索抓取网页数</label>
                 <input type="number" class="form-control highlight-connection" id="maxSearchResults" name="max_search_results" min="1" max="20" value="5">
-                <small class="text-muted">Controls the number of websites scraped per search query (default: 5)</small>
+                <small class="text-muted">数字越大越全面,但越慢(默认 5)</small>
             </div>
             <div class="form-group">
-                <label for="queryDomains" class="form-label">Query Domains (Optional)</label>
-                <input type="text" class="form-control highlight-connection" id="queryDomains" name="query_domains" placeholder="Enter domains separated by commas" autocomplete="on">
-                <small class="text-muted">Example: techcrunch.com, forbes.com</small>
+                <label for="queryDomains" class="form-label">限定域名(可选)</label>
+                <input type="text" class="form-control highlight-connection" id="queryDomains" name="query_domains" placeholder="用逗号分隔多个域名" autocomplete="on">
+                <small class="text-muted">留空则由系统按问题类型自动决定是否套用财经站点白名单</small>
             </div>
 
             <!-- MCP Configuration Section -->
@@ -282,7 +291,8 @@
                 </div>
             </div>
 
-            <input type="submit" value="Begin Research" class="btn btn-primary button-padding" id="submitButton">
+                </div><!-- /.advanced-body -->
+            </details>
         </form>
 
         <!-- Add JSON button above Research Progress section -->
@@ -292,22 +302,41 @@
             </a>
         </div>
 
+        <!-- ============================================================
+             研究计划面板(fork 新增)
+             把后端推来的编排信号(🎯 路由 / 📌 实体 / 🔍 展开 / 🔬 抽取 / ⚠️ 降级)
+             从滚动日志里分流出来,结构化呈现"系统怎么理解并拆解这个问题"。
+             由 scripts.js 的 investmentPlan 模块填充;无信号时保持隐藏。
+             ============================================================ -->
+        <div class="margin-div plan-container" id="planContainer" style="display: none;">
+            <h2><i class="fas fa-sitemap"></i> 研究计划</h2>
+            <p class="panel-sub">系统对这个问题的判断,以及它准备怎么逐层拆解</p>
+
+            <!-- 路由决策:识别为哪一类投研问题 + 研究对象 -->
+            <div class="plan-route" id="planRoute"></div>
+
+            <!-- 逐层展开:每层的节点,以及节点下挂的美股标的 -->
+            <div class="plan-tree" id="planTree"></div>
+
+            <!-- 汇总统计:检索条数 / 财务卡片数 / 降级提示 -->
+            <div class="plan-stats" id="planStats"></div>
+        </div>
+
         <div class="margin-div research-output-container">
             <!-- Move spinner to the left side of the text -->
-            <h2><div id="modernSpinner" class="modern-spinner"></div> Research Progress <button id="expandOutputBtn" class="expand-button" title="Expand"><i class="fas fa-expand-alt"></i></button></h2>
-            <p class="mt-2 text-left" style="font-size: 0.8rem;">
-                Watch as the AI works to gather information and analyze your topic in real-time.</p>
+            <h2><div id="modernSpinner" class="modern-spinner"></div> 执行日志 <button id="expandOutputBtn" class="expand-button" title="展开"><i class="fas fa-expand-alt"></i></button></h2>
+            <p class="panel-sub">检索、抓取、摘要的实时过程</p>
             <div id="output"></div>
         </div>
         <div class="images_div">
             <div id="selectedImagesContainer" style="display: none;"></div>
         </div>
         <div class="margin-div report-container">
-            <h2>Research Report
-                <button id="copyToClipboardTop" class="icon-button" title="Copy" style="display: none;">
+            <h2>研究报告
+                <button id="copyToClipboardTop" class="icon-button" title="复制" style="display: none;">
                     <i class="fas fa-copy"></i>
                 </button>
-                <button id="expandReportBtn" class="expand-button" title="Expand">
+                <button id="expandReportBtn" class="expand-button" title="展开">
                     <i class="fas fa-expand-alt"></i>
                 </button>
             </h2>
@@ -331,16 +360,16 @@
 
         <!-- Chat Container -->
         <div class="margin-div chat-container" id="chatContainer" style="display: none;">
-            <h2><i class="fas fa-comments"></i> Chat with AI about this research <button id="expandChatBtn" class="expand-button" title="Expand"><i class="fas fa-expand-alt"></i></button></h2>
-            <p class="text-muted">Ask questions about the research report to get more insights</p>
+            <h2><i class="fas fa-comments"></i> 追问 <button id="expandChatBtn" class="expand-button" title="展开"><i class="fas fa-expand-alt"></i></button></h2>
+            <p class="panel-sub">基于这份报告继续提问</p>
             <div id="chatMessages" class="chat-messages"></div>
             <div class="chat-input-container">
-                <textarea id="chatInput" class="form-control chat-input" placeholder="Ask a question about this research..." rows="2"></textarea>
-                <button id="voiceInputBtn" class="btn btn-secondary" title="Use voice input">
+                <textarea id="chatInput" class="form-control chat-input" placeholder="就这份研究报告提个问题..." rows="2"></textarea>
+                <button id="voiceInputBtn" class="btn btn-secondary" title="语音输入">
                     <i class="fas fa-microphone"></i>
                 </button>
                 <button id="sendChatBtn" class="btn btn-primary">
-                    <i class="fas fa-paper-plane"></i> Send
+                    <i class="fas fa-paper-plane"></i> 发送
                 </button>
             </div>
         </div>
@@ -351,26 +380,26 @@
     <!-- Conversation History Panel -->
     <div class="history-panel" id="historyPanel">
         <div class="history-panel-header">
-            <h3><i class="fas fa-history"></i> Research History</h3>
+            <h3><i class="fas fa-history"></i> 研究历史</h3>
             <div class="history-panel-actions">
-                <button id="historyPanelToggle" class="history-action-btn" title="Close panel">
+                <button id="historyPanelToggle" class="history-action-btn" title="关闭面板">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         </div>
         <div class="history-panel-search">
-            <input type="text" id="historySearch" placeholder="Search research history...">
-            <button id="historySearchBtn" class="history-action-btn" title="Search">
+            <input type="text" id="historySearch" placeholder="搜索历史记录...">
+            <button id="historySearchBtn" class="history-action-btn" title="搜索">
                 <i class="fas fa-search"></i>
             </button>
         </div>
         <div class="history-panel-filters">
             <select id="historySortOrder">
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
+                <option value="newest">最新在前</option>
+                <option value="oldest">最早在前</option>
             </select>
             <!-- JS will add Import/Export/Debug buttons here -->
-            <button id="historyClearBtn" class="history-action-btn" title="Clear all history">
+            <button id="historyClearBtn" class="history-action-btn" title="清空全部历史">
                 <i class="fas fa-trash-alt"></i>
             </button>
         </div>
@@ -383,7 +412,7 @@
     <div class="sticky-downloads-bar" id="stickyDownloadsBar" style="display: none;"> <!-- Initially hidden -->
         <div class="download-buttons-container">
             <a id="copyToClipboard" class="download-option-btn disabled">
-                <i class="fas fa-copy"></i> Copy (Markdown)
+                <i class="fas fa-copy"></i> 复制 Markdown
             </a>
             <a id="downloadLinkMd" href="#" class="download-option-btn disabled" target="_blank" rel="noopener noreferrer">
                 <i class="fas fa-file-lines"></i> Markdown
@@ -395,18 +424,20 @@
                 <i class="fas fa-file-word"></i> Word
             </a>
             <a id="downloadLinkJson" href="#" class="download-option-btn disabled" target="_blank" rel="noopener noreferrer">
-                <i class="fas fa-file-code"></i> Log (JSON)
+                <i class="fas fa-file-code"></i> 日志 JSON
             </a>
         </div>
     </div>
 
     <footer>
-        <p>
-            <a target="_blank" href="https://gptr.dev">Homepage</a> |
-            <a target="_blank" href="https://github.com/assafelovic/gpt-researcher">GitHub</a> |
-            <a target="_blank" href="https://discord.gg/spBgZmm3Xe">Discord</a>
+        <!-- BRAND(3/3) -->
+        <p class="footer-brand">研市 ResearchDesk &middot; 美股基本面研究助手</p>
+        <p class="footer-note">
+            研究辅助工具,输出内容不构成投资建议。数字以报告内引用来源为准。
         </p>
-        <p>GPT Researcher &copy; 2024</p>
+        <p class="footer-credit">
+            基于 <a target="_blank" rel="noopener" href="https://github.com/assafelovic/gpt-researcher">GPT Researcher</a> 开源内核构建
+        </p>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
     <script src="/site/scripts.js"></script>

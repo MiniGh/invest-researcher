@@ -41,6 +41,18 @@ const GPTResearcher = (() => {
       return false;
     });
 
+    // 示例问题:点击填入输入框(演示时不用现场打字)
+    document.querySelectorAll('.example-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const task = document.getElementById('task');
+        if (!task) return;
+        task.value = chip.dataset.query || chip.textContent.trim();
+        task.style.height = 'auto';
+        task.style.height = task.scrollHeight + 'px';
+        task.focus();
+      });
+    });
+
     document
       .getElementById('copyToClipboard')
       .addEventListener('click', copyToClipboard)
@@ -779,6 +791,7 @@ const GPTResearcher = (() => {
   const startResearch = () => {
     document.getElementById('output').innerHTML = ''
     document.getElementById('reportContainer').innerHTML = ''
+    investmentPlan.reset() // 清空上一次的研究计划面板
     dispose_socket?.() // Call previous dispose function if it exists
 
     // Reset report variables
@@ -884,36 +897,25 @@ const GPTResearcher = (() => {
         console.log("Received images:", data);  // Debug log
         displaySelectedImages(data)
       } else if (data.type === 'report') {
-        // Add to reportContent for history
+        // 统一走"累积原始 markdown → 整体渲染"。
+        //
+        // 原来非 detailed_report 走的是"每个 chunk 单独 makeHtml 再拼 HTML",
+        // 这会让表格永远渲染不出来:后端是按行推流的(llm_provider/generic/base.py
+        // 每遇到 \n 就 flush 一次),一张表的表头 / 分隔行 / 数据行必然落在不同
+        // chunk 里,showdown 拿到孤立的一行 "| a | b |" 认不出这是表格,只能当
+        // 普通文字渲染。标题、加粗不受影响是因为它们在单行内自足。
         reportContent += data.output;
-
-        // Get the current report_type
-        const report_type = document.querySelector('select[name="report_type"]').value;
-
-        // Determine if we're using detailed_report
-        const isDetailedReport = report_type === 'detailed_report';
-
-        if (isDetailedReport) {
-          allReports += data.output; // Accumulate raw markdown
-          // Always render the HTML of *all accumulated markdown* for detailed reports during streaming.
-          // writeReport will replace the container's content.
-          writeReport({ output: allReports, type: 'report' }, converter, false, false);
-        } else {
-          // For all other report types, append HTML of current chunk to the container.
-          writeReport({ output: data.output, type: 'report' }, converter, false, true); // append = true
-        }
+        allReports += data.output;
+        scheduleReportRender(allReports, converter);
       } else if (data.type === 'path') {
         updateState('finished')
         downloadLinkData = updateDownloadLink(data)
         isResearchActive = false;
 
-        // Get the current report_type
-        const report_type = document.querySelector('select[name="report_type"]').value;
-
-        // Only for detailed_report, show the complete accumulated report at the end
-        if (report_type === 'detailed_report' && allReports) {
-          const finalData = { output: allReports, type: 'report' };
-          writeReport(finalData, converter, true, false); // isFinal=true, append=false
+        // 收尾整体重渲染一次:兜住 rAF 节流可能还没落地的最后一帧,
+        // 并确保最终 DOM 一定来自完整 markdown(所有报告类型统一处理)。
+        if (allReports) {
+          writeReport({ output: allReports, type: 'report' }, converter, true, false);
         }
 
         // Save to history now that research is complete
@@ -1047,7 +1049,327 @@ const GPTResearcher = (() => {
     };
   }
 
+  /* ==========================================================================
+     研究计划面板(fork 新增)
+     --------------------------------------------------------------------------
+     后端 gpt_researcher/investment/ 里的各 strategy 通过 stream_output 推送带
+     emoji 前缀的编排信号。这里按前缀把它们从滚动日志分流出来,渲染成结构化的
+     "研究计划",让 L0-A 路由决策和 L1 树展开在界面上可见。
+
+     信号词汇(与后端 _log 调用一一对应):
+       🎯 路由决策   📌 解析出的实体   🔍 展开计划
+       🔬 抽取结果   ⚠️ 降级          📑 财报   ℹ️ 兜底
+
+     解析失败时一律回落到普通日志(见 addAgentResponse),不静默吞消息。
+     ========================================================================= */
+  const investmentPlan = (() => {
+    const LABEL_CN = {
+      company_profile: '公司画像',
+      company_comparison: '公司对比',
+      sector_landscape: '行业横切',
+      value_chain: '产业链纵切',
+      theme_analysis: '主题受益',
+      '其他': '通用研究',
+    };
+
+    // 累积状态,每次新研究由 reset() 清空
+    let state = null;
+
+    const blank = () => ({
+      label: null,
+      subject: null,
+      levels: [],      // {tag, desc, count, nodes:[{name, tickers:[]}]}
+      stats: [],       // {num, label}
+      warnings: [],
+      totalQueries: 0,
+    });
+
+    const esc = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    // 去掉 emoji 前缀,拿正文
+    const body = (text, marker) => text.slice(marker.length).trim();
+
+    // "A, B, C" → ["A","B","C"]
+    const splitList = (s) => s.split(/[,,]/).map((x) => x.trim()).filter(Boolean);
+
+    // "Seg[TICK, TICK]; Seg2[无美股]" → [{name, tickers}]
+    const parseNodeTickers = (s) => s.split(/[;；]/).map((chunk) => {
+      const m = chunk.trim().match(/^(.+?)\[(.*)\]$/);
+      if (!m) return null;
+      const raw = m[2].trim();
+      const tickers = (raw === '无美股' || !raw) ? [] : splitList(raw);
+      return { name: m[1].trim(), tickers };
+    }).filter(Boolean);
+
+    /**
+     * "Name(TICK), Name2(TICK2)" → [{name, tickers:[TICK]}]
+     * 注意不能按逗号切:公司名本身常含逗号(如 "Tesla, Inc.(TSLA)")。
+     * 改为直接匹配 括号对,括号外的部分即公司名,再削掉前导逗号。
+     */
+    const parseCompanies = (s) => {
+      const out = [];
+      const re = /([^()（）]+)[(（]([^()（）]*)[)）]/g;
+      let m;
+      while ((m = re.exec(s)) !== null) {
+        const name = m[1].replace(/^[\s,，]+/, '').trim();
+        const t = m[2].trim();
+        if (name) out.push({ name, tickers: (t && t !== '-') ? [t] : [] });
+      }
+      // 完全没有括号时退回按逗号切
+      if (!out.length) return splitList(s).map((n) => ({ name: n, tickers: [] }));
+      return out;
+    };
+
+    const findLevel = (tag) => state.levels.find((l) => l.tag === tag);
+
+    const upsertLevel = (tag, patch) => {
+      let lv = findLevel(tag);
+      if (!lv) {
+        lv = { tag, desc: '', count: null, nodes: [] };
+        state.levels.push(lv);
+      }
+      Object.assign(lv, patch);
+      return lv;
+    };
+
+    /** 把节点挂到"最近一个还没有节点的层",没有就新建一层承载 */
+    const attachNodes = (nodes, fallbackTag, fallbackDesc) => {
+      let lv = [...state.levels].reverse().find((l) => l.nodes.length === 0);
+      if (!lv) lv = upsertLevel(fallbackTag, { desc: fallbackDesc });
+      lv.nodes = nodes;
+      return lv;
+    };
+
+    /**
+     * 尝试消费一条日志。
+     * @returns {boolean} true = 已被计划面板接管(不再进滚动日志)
+     */
+    const consume = (rawText) => {
+      const text = String(rawText || '').replace(/<[^>]*>/g, '').trim();
+      if (!text) return false;
+      if (!state) state = blank();
+
+      try {
+        // ---------- 🎯 路由决策 ----------
+        if (text.startsWith('🎯')) {
+          const m = body(text, '🎯').match(/L0-A\s*标签[:：]\s*(\S+)/);
+          if (!m) return false;
+          state.label = m[1];
+          render();
+          return true;
+        }
+
+        // ---------- ℹ️ 兜底 ----------
+        if (text.startsWith('ℹ️')) {
+          state.label = state.label || '其他';
+          render();
+          return true;
+        }
+
+        // ---------- 📌 实体 ----------
+        if (text.startsWith('📌')) {
+          const rest = body(text, '📌');
+
+          // 研究对象:"value_chain:US semiconductor industry"
+          const subj = rest.match(/^(company_profile|value_chain|theme_analysis)[:：]\s*(.+)$/);
+          if (subj) {
+            state.subject = subj[2].trim();
+            render();
+            return true;
+          }
+
+          // 公司对比:"对比 3 家:NVIDIA(NVDA), ..."
+          const cmp = rest.match(/^对比\s*\d+\s*家[:：]\s*(.+)$/);
+          if (cmp) {
+            attachNodes(parseCompanies(cmp[1]), 'L1', '对比标的');
+            render();
+            return true;
+          }
+
+          // 行业玩家:"解析到 4 家代表公司:Tesla, Inc.(TSLA), ..."
+          const players = rest.match(/^解析到\s*\d+\s*家代表公司[:：]\s*(.+)$/);
+          if (players) {
+            attachNodes(parseCompanies(players[1]), 'L1', '代表公司');
+            render();
+            return true;
+          }
+
+          // 环节 / 类别:"解析到 4 个环节:A, B" / "解析到 4 个受益类别:A, B"
+          const seg = rest.match(/^解析到\s*\d+\s*个(环节|受益类别)[:：]\s*(.+)$/);
+          if (seg) {
+            const nodes = splitList(seg[2]).map((n) => ({ name: n, tickers: [] }));
+            attachNodes(nodes, 'L1', seg[1] === '环节' ? '价值链环节' : '受益类别');
+            render();
+            return true;
+          }
+
+          // 每节点龙头:"各环节龙头:IP & EDA[CDNS, SNPS]; ..."
+          const leaders = rest.match(/^各(?:环节龙头|类别代表股)[:：]\s*(.+)$/);
+          if (leaders) {
+            const parsed = parseNodeTickers(leaders[1]);
+            if (!parsed.length) return false;
+            // 合并进已有节点(按名字匹配),匹配不上就整体替换
+            const target = [...state.levels].reverse().find((l) => l.nodes.length);
+            if (target) {
+              parsed.forEach((p) => {
+                const hit = target.nodes.find((n) => n.name === p.name);
+                if (hit) hit.tickers = p.tickers;
+              });
+              if (!target.nodes.some((n) => n.tickers.length)) target.nodes = parsed;
+            } else {
+              attachNodes(parsed, 'L1', '节点');
+            }
+            render();
+            return true;
+          }
+
+          return false; // 未知 📌 形态 → 回落日志
+        }
+
+        // ---------- 🔍 展开计划 ----------
+        // 注意:🔍 前缀被上游复用(每条 sub-query 都会发 "🔍 Running research for '...'"),
+        // 所以只认我们自己的两种形态,其余一律放行进日志。
+        if (text.startsWith('🔍')) {
+          const rest = body(text, '🔍');
+          const lvm = rest.match(/^Level\s*(\d+)\s*[:：]\s*(.+)$/);
+          const isOwnBatch = /^共\s*\d+\s*条\s*sub-query/.test(rest);
+          if (!lvm && !isOwnBatch) return false; // 上游消息 → 回落日志
+
+          const cnt = rest.match(/共\s*(\d+)\s*条/) || rest.match(/[(（]\s*(\d+)\s*条/);
+          const n = cnt ? parseInt(cnt[1], 10) : null;
+
+          if (lvm) {
+            const desc = lvm[2].replace(/[(（][^)）]*sub-query[^)）]*[)）]/g, '')
+              .replace(/[,,]?\s*共\s*\d+\s*条\s*sub-query/, '').trim();
+            upsertLevel('L' + lvm[1], { desc, count: n });
+          } else {
+            // company_comparison 的 "共 18 条 sub-query(3 家 × 6 维度)"
+            upsertLevel('L1', {
+              desc: rest.replace(/^共\s*\d+\s*条\s*sub-query\s*/, '').replace(/^[(（]|[)）]$/g, '').trim() || '按维度展开',
+              count: n,
+            });
+          }
+          if (n) state.totalQueries += n;
+          render();
+          return true;
+        }
+
+        // ---------- 🔬 抽取结果 ----------
+        if (text.startsWith('🔬')) {
+          const rest = body(text, '🔬');
+          const m = rest.match(/(\d+)\s*\/\s*(\d+)/);
+          if (!m) return false;
+          const label = /指标字段/.test(rest) ? '指标字段'
+            : /对比指标/.test(rest) ? '对比指标'
+              : '财务卡片';
+          state.stats = state.stats.filter((s) => s.label !== label);
+          state.stats.push({ num: `${m[1]}/${m[2]}`, label });
+          render();
+          return true;
+        }
+
+        // ---------- ⚠️ 降级 ----------
+        if (text.startsWith('⚠️')) {
+          const msg = body(text, '⚠️');
+          if (!state.warnings.includes(msg)) state.warnings.push(msg);
+          render();
+          return true;
+        }
+
+        // ---------- 📑 财报 ----------
+        if (text.startsWith('📑')) {
+          state.stats = state.stats.filter((s) => s.label !== '财报');
+          state.stats.push({ num: '✓', label: '已取到财报' });
+          render();
+          return true;
+        }
+      } catch (e) {
+        console.warn('[plan] 解析失败,回落到日志:', text, e);
+        return false;
+      }
+      return false;
+    };
+
+    const render = () => {
+      const box = document.getElementById('planContainer');
+      if (!box || !state) return;
+      box.style.display = 'block';
+
+      // --- 路由 ---
+      const routeEl = document.getElementById('planRoute');
+      if (state.label) {
+        const cn = LABEL_CN[state.label] || state.label;
+        const isFallback = state.label === '其他';
+        routeEl.innerHTML =
+          `<span class="route-key">识别为</span>` +
+          `<span class="route-badge${isFallback ? ' is-fallback' : ''}">${esc(cn)}</span>` +
+          `<span class="route-code">${esc(state.label)}</span>` +
+          (state.subject
+            ? `<span class="route-subject"><span class="route-key">研究对象</span>${esc(state.subject)}</span>`
+            : '');
+      } else {
+        routeEl.innerHTML = '';
+      }
+
+      // --- 树 ---
+      const treeEl = document.getElementById('planTree');
+      treeEl.innerHTML = state.levels.map((lv) => {
+        const nodes = lv.nodes.map((n) => {
+          const tickers = n.tickers.length
+            ? n.tickers.map((t) => `<span class="ticker">${esc(t)}</span>`).join('')
+            : `<span class="node-empty">无美股标的</span>`;
+          return `<div class="plan-node"><span class="node-name">${esc(n.name)}</span>` +
+            `<span class="node-tickers">${tickers}</span></div>`;
+        }).join('');
+        return `<div class="plan-level">` +
+          `<div class="level-head">` +
+          `<span class="level-tag">${esc(lv.tag)}</span>` +
+          `<span class="level-desc">${esc(lv.desc || '')}</span>` +
+          (lv.count ? `<span class="level-count">${lv.count} 条检索</span>` : '') +
+          `</div>` +
+          (nodes ? `<div class="plan-nodes">${nodes}</div>` : '') +
+          `</div>`;
+      }).join('');
+
+      // --- 统计 ---
+      const statsEl = document.getElementById('planStats');
+      const parts = [];
+      if (state.totalQueries) {
+        parts.push(`<span class="stat"><span class="stat-num">${state.totalQueries}</span>` +
+          `<span class="stat-label">条检索</span></span>`);
+      }
+      state.stats.forEach((s) => {
+        parts.push(`<span class="stat"><span class="stat-num">${esc(s.num)}</span>` +
+          `<span class="stat-label">${esc(s.label)}</span></span>`);
+      });
+      state.warnings.forEach((w) => {
+        parts.push(`<div class="plan-warn"><i class="fas fa-triangle-exclamation"></i>` +
+          `<span>${esc(w)}</span></div>`);
+      });
+      statsEl.innerHTML = parts.join('');
+    };
+
+    const reset = () => {
+      state = blank();
+      const box = document.getElementById('planContainer');
+      if (box) {
+        box.style.display = 'none';
+        ['planRoute', 'planTree', 'planStats'].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.innerHTML = '';
+        });
+      }
+    };
+
+    return { consume, reset };
+  })();
+
   const addAgentResponse = (data) => {
+    // 投研编排信号先给"研究计划"面板消费;解析不了的照旧进滚动日志。
+    if (investmentPlan.consume(data.output)) return;
+
     const output = document.getElementById('output');
     const responseDiv = document.createElement('div');
     responseDiv.className = 'agent_response';
@@ -1081,6 +1403,24 @@ const GPTResearcher = (() => {
     output.scrollTop = output.scrollHeight;
     output.style.display = 'block';
   }
+
+  /**
+   * 流式渲染节流:整篇 markdown 每次都要重新转换,而后端按行推流(百来个 chunk),
+   * 逐个全量重渲染既浪费又会闪。用 rAF 合并到每帧最多一次。
+   */
+  let reportRenderPending = false;
+  let reportRenderLatest = '';
+  const scheduleReportRender = (markdown, converter) => {
+    reportRenderLatest = markdown;
+    if (reportRenderPending) return;
+    reportRenderPending = true;
+    const run = () => {
+      reportRenderPending = false;
+      writeReport({ output: reportRenderLatest, type: 'report' }, converter, false, false);
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+    else setTimeout(run, 16);
+  };
 
   const writeReport = (data, converter, isFinal = false, append = false) => {
     const reportContainer = document.getElementById('reportContainer');
