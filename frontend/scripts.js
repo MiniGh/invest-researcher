@@ -786,6 +786,14 @@ const GPTResearcher = (() => {
     currentReport = '';
     isFirstReport = true;
 
+    // Clear stale reconnection state from any previous query. Without this, the
+    // 2nd query in the same page session hangs: onopen's reconnect-skip guard
+    // (isResearchActive && lastRequestData) stays true from the 1st query and
+    // returns early WITHOUT sending the `start` command — spinner spins forever.
+    // The genuine reconnect path goes through reconnectWebSocket(), not here, so
+    // clearing this only affects user-initiated new queries.
+    lastRequestData = null;
+
     // Hide the download bar
     const stickyDownloadsBar = document.getElementById('stickyDownloadsBar');
     if (stickyDownloadsBar) {
