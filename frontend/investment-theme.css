@@ -29,8 +29,10 @@
     --rd-amber-glow: rgba(240, 180, 41, 0.13);
     --rd-red: #f2555a;
 
-    /* 等宽字体:代号、数字、标签 —— 金融终端的关键质感 */
-    --rd-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+    /* IBM Plex:为技术 / 数据界面设计的字族。Sans 走正文,Mono 承载所有代号、
+       数字、层级标签 —— 等宽是金融终端的关键质感。中文回落系统字。 */
+    --rd-sans: "IBM Plex Sans", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --rd-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
     --rd-radius: 10px;
     --rd-radius-sm: 6px;
@@ -43,6 +45,19 @@ html,
 body {
     background: var(--rd-bg) !important;
     color: var(--rd-text);
+    font-family: var(--rd-sans) !important;
+}
+
+/* 上游把 Montserrat 写死在好几个组件上,统一收归 Plex */
+button,
+input,
+select,
+textarea,
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--rd-sans);
 }
 
 /* 上游在 body::before 铺了一层装饰渐变,压掉它避免颜色打架 */
@@ -56,53 +71,130 @@ body::before {
     color: var(--rd-text);
 }
 
-/* ---------------------------------------------------------------- 首屏 */
+/* ---------------------------------------------- 历史抽屉打开时的正文让位 */
 
-.landing {
+/* 历史面板是 position:fixed 的 320px 抽屉(styles.css:1002),默认盖在正文上。
+   关着的时候正文吃满整屏;打开时正文右侧让出 320px,两边同时过渡,不互相遮挡。
+   缓动曲线和抽屉自身保持一致,不然两者滑动节奏对不上。 */
+/* 粘底页脚:内容不够高时页脚贴视口底,而不是吊在半空、下面留一大片空。
+   body 的其余子元素(nav-buttons / 两个抽屉 / 下载条)都是 fixed 或 absolute,
+   不参与 flex 布局,所以这里只影响 <main> 和 <footer> 两个。 */
+body {
+    min-height: 100vh;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 78vh;
-    padding: 40px 20px;
+    flex-direction: column;
+    transition: padding-right 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-.hero {
-    max-width: 760px;
-    margin: 0 auto;
-    text-align: center;
+main.container {
+    flex: 1 0 auto;
 }
+
+footer {
+    margin-top: auto;
+    flex: none;
+}
+
+body.history-open {
+    padding-right: 320px;
+}
+
+/* "连接 / 历史"两个按钮固定不动 —— 它们是抽屉的把手,抽屉从它们下面拉出来。
+   按钮跟着抽屉左右横移会让人找不到刚才点的地方。 */
+.history-panel,
+.websocket-panel {
+    top: 72px;
+    height: calc(100vh - 72px);
+}
+
+/* 窄屏放弃让位:挤不下,抽屉直接盖在正文上 */
+@media (max-width: 1100px) {
+    body.history-open {
+        padding-right: 0;
+    }
+}
+
+/* ---------------------------------------------------------------- 顶部区 */
+
+/* 左品牌 / 右提问两栏。不再用整屏 hero —— 首页的职责是"让人立刻能提问",
+   品牌信息压到左侧一栏即可,不该占满一屏。 */
+/* 左右各一半。两边都是主角:左边说清楚它怎么拆问题,右边让人立刻能问。 */
+.desk-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(32px, 4vw, 72px);
+    align-items: start;
+    padding: 40px 0 10px;
+}
+
+/* 品牌区刻意不做成卡片:整个左栏就是它的地盘。用一条竖分隔线划出区域,
+   而不是用边框把它圈进一个小盒子里。 */
+.desk-brand {
+    padding: 0 clamp(24px, 3vw, 56px) 0 0;
+    border-right: 1px solid var(--rd-border);
+}
+
+.desk-ask {
+    /* grid 子项默认 min-width:auto,长 URL / 宽表格会把栏撑爆 */
+    min-width: 0;
+}
+
+/* 表单做成 flex 列,好让主按钮 align-self 生效 */
+.desk-ask #researchForm {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 窄屏落回单栏:品牌在上、提问在下,且不再 sticky */
+@media (max-width: 900px) {
+    .desk-head {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        padding-top: 22px;
+    }
+
+    .desk-brand {
+        border-right: none;
+        border-bottom: 1px solid var(--rd-border);
+        padding: 0 0 24px;
+    }
+}
+
 
 .hero-brand {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 14px;
     margin-bottom: 6px;
 }
 
 /* 品牌标记:一个简化的"K 线/柱状"图形,纯 CSS,不依赖图片资源 */
+/* 三根柱子按 42px 见方重算过位置:左右各留 6px,柱宽 7px,间距 11.5px */
 .hero-mark {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
     flex: none;
-    border-radius: 7px;
+    border-radius: 9px;
     background:
-        linear-gradient(to top, var(--rd-accent) 0 38%, transparent 38%) 2px bottom / 6px 62% no-repeat,
-        linear-gradient(to top, var(--rd-accent) 0 78%, transparent 78%) 11px bottom / 6px 100% no-repeat,
-        linear-gradient(to top, var(--rd-amber) 0 55%, transparent 55%) 20px bottom / 6px 84% no-repeat,
+        linear-gradient(to top, var(--rd-accent) 0 38%, transparent 38%) 6px bottom / 7px 62% no-repeat,
+        linear-gradient(to top, var(--rd-accent) 0 78%, transparent 78%) 17.5px bottom / 7px 100% no-repeat,
+        linear-gradient(to top, var(--rd-amber) 0 55%, transparent 55%) 29px bottom / 7px 84% no-repeat,
         var(--rd-surface-2);
     border: 1px solid var(--rd-border-strong);
 }
 
 .hero-name {
-    font-size: 46px;
+    font-size: 38px;
     font-weight: 700;
     letter-spacing: 2px;
     margin: 0;
     color: var(--rd-text);
+    /* 竖排:窄栏里中英文并排会挤,英文名放中文名下面 */
     display: flex;
-    align-items: baseline;
-    gap: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    line-height: 1.15;
 }
 
 .hero-name-en {
@@ -114,93 +206,274 @@ body::before {
     text-transform: uppercase;
 }
 
+/* 品牌名下面的一句静默描述。这里刻意用 sans 不用 mono:mono 配大字距渲染
+   中文会把每个字拆得七零八落。mono 只留给拉丁字母和数字(代号、层级、条数)。 */
 .hero-tagline {
-    font-size: 17px;
-    color: var(--rd-text-dim);
-    letter-spacing: 3px;
-    margin: 0 0 22px;
-}
-
-/* 首屏事实行:不抒情,直接报数。数字用等宽 + 强调色,是全页视觉重心之一。 */
-.hero-facts {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin: 0 auto 32px;
-    font-size: 14.5px;
-    color: var(--rd-text-dim);
-    letter-spacing: 0.5px;
-}
-
-.hero-facts .fact b {
-    font-family: var(--rd-mono);
-    font-size: 19px;
-    font-weight: 700;
-    color: var(--rd-accent);
-    margin: 0 2px;
-}
-
-.fact-dot {
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--rd-border-strong);
-    flex: none;
-}
-
-/* 5 类能力芯片:首屏就把"它懂什么"摊开 */
-.hero-caps {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 9px;
-    margin-bottom: 34px;
-}
-
-.cap-chip {
     font-size: 13px;
-    padding: 6px 14px;
+    color: var(--rd-text-faint);
+    letter-spacing: 0.6px;
+    margin: 12px 0 0;
+}
+
+/* 首屏主张。整页字号最大的东西 —— 它得先说清楚这产品干什么。 */
+.hero-lede {
+    font-size: clamp(28px, 2.6vw, 40px);
+    font-weight: 600;
+    line-height: 1.28;
+    letter-spacing: -0.4px;
+    color: var(--rd-text);
+    margin: 22px 0 0;
+}
+
+.hero-sub {
+    font-size: 14.5px;
+    line-height: 1.85;
+    color: var(--rd-text-dim);
+    margin: 14px 0 0;
+    /* 用 px 不用 ch:ch 是按数字 0 的宽度算的,中文里会算出一个过窄的行宽 */
+    max-width: 560px;
+}
+
+/* ------------------------------------------------ 签名区:路径分解树 */
+
+.routes {
+    margin: 28px 0 0;
+    padding-top: 24px;
+    border-top: 1px solid var(--rd-border);
+}
+
+.routes-eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    color: var(--rd-text-faint);
+    margin: 0 0 12px;
+}
+
+.route-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 16px;
+}
+
+.route-tab {
+    font-size: 13px;
+    padding: 6px 13px;
     border-radius: 999px;
     border: 1px solid var(--rd-border-strong);
-    background: var(--rd-surface);
+    background: transparent;
     color: var(--rd-text-dim);
-    letter-spacing: 0.5px;
-    transition: border-color 0.2s, color 0.2s;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    transition: border-color 0.18s, color 0.18s, background 0.18s;
 }
 
-.cap-chip:hover {
+.route-tab:hover {
     border-color: var(--rd-accent);
     color: var(--rd-accent);
 }
 
-.hero-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    padding: 12px 30px;
-    border-radius: var(--rd-radius);
-    background: var(--rd-accent-deep);
-    color: #04120f;
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 1px;
-    text-decoration: none;
-    transition: background 0.2s, transform 0.15s;
+.route-tab.is-active {
+    border-color: var(--rd-accent);
+    background: var(--rd-accent-glow);
+    color: var(--rd-accent);
+    font-weight: 600;
 }
 
-.hero-cta:hover {
-    background: var(--rd-accent);
-    color: #04120f;
-    text-decoration: none;
-    transform: translateY(-1px);
+.route-tab:focus-visible {
+    outline: 2px solid var(--rd-accent);
+    outline-offset: 2px;
+}
+
+/* 树本体。左侧一条竖轴把三层串起来,视觉上就是"一个问题往下长"。 */
+.route-demo {
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius);
+    background: var(--rd-bg);
+    padding: 16px 18px 14px;
+}
+
+.route-demo.is-in {
+    animation: routeIn 0.28s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
+@keyframes routeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .route-demo.is-in {
+        animation: none;
+    }
+}
+
+.route-q {
+    font-size: 14px;
+    color: var(--rd-text);
+    margin: 0 0 14px;
+    padding-left: 14px;
+    border-left: 2px solid var(--rd-accent);
+    line-height: 1.5;
+}
+
+.route-levels {
+    position: relative;
+    padding-left: 14px;
+}
+
+/* 竖轴 */
+.route-levels::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 6px;
+    bottom: 10px;
+    width: 1px;
+    background: var(--rd-border-strong);
+}
+
+.rl {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    padding: 5px 0;
+}
+
+.rl-tag {
+    font-family: var(--rd-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--rd-accent);
+    background: var(--rd-accent-glow);
+    border-radius: 3px;
+    padding: 2px 5px;
+    flex: none;
+}
+
+.rl-desc {
+    font-size: 13px;
+    color: var(--rd-text-dim);
+    flex: 1;
+    min-width: 0;
+}
+
+/* 检索条数右对齐成一列,像账目一样能纵向比较 */
+.rl-count {
+    font-family: var(--rd-mono);
+    font-size: 12px;
+    color: var(--rd-text);
+    flex: none;
+}
+
+.rl-count::after {
+    content: " 条";
+    font-family: var(--rd-sans);
+    font-size: 10.5px;
+    color: var(--rd-text-faint);
+}
+
+.rl-nodes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 2px 0 8px 6px;
+    padding-left: 14px;
+    border-left: 1px solid var(--rd-border);
+}
+
+.rl-node {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--rd-text-dim);
+}
+
+.rl-node-name {
+    margin-right: 2px;
+}
+
+.tk {
+    font-family: var(--rd-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    color: var(--rd-amber);
+    border: 1px solid rgba(240, 180, 41, 0.32);
+    background: var(--rd-amber-glow);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+.route-yield {
+    margin: 12px 0 0;
+    padding-top: 11px;
+    border-top: 1px solid var(--rd-border);
+    font-size: 12px;
+    color: var(--rd-text-faint);
+}
+
+.route-yield b {
+    font-family: var(--rd-mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--rd-accent);
+}
+
+/* 覆盖范围声明。刻意做得低调但不隐藏:引擎硬性只认美股上市主体,
+   界面不交代就会被误当成全市场工具。 */
+.scope-note {
+    margin: 16px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--rd-border);
+    font-size: 11.5px;
+    letter-spacing: 0.3px;
+    color: var(--rd-text-faint);
 }
 
 /* ---------------------------------------------------------------- 提问区 */
 
+/* 顶部两栏 + 下方全宽内容,比原来的 940px 宽一些才不显局促 */
+/* 主容器铺满整页。上游把 .container 做成了一张居中的浅色卡片
+   (styles.css:88 有 rgba 白底 + 圆角 + 阴影 + `margin: auto auto 180px auto`,
+   760 行还在 ≥1400px 分支里加了 `max-width: 900px !important`)——在宽屏上
+   就变成一小块浮在中间的盒子。这里整体拆掉,只留左右内边距。 */
 .container#form {
-    max-width: 940px;
+    /* 铺满常规屏(1280–1680 全宽),只在超宽显示器上封顶居中 —— 通栏到
+       2000px+ 时正文一行长得没法读。 */
+    max-width: 1680px !important;
+    width: 100%;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 clamp(20px, 3vw, 56px) !important;
+    margin: 0 auto 24px !important;
+    /* 报告出完后靠 order 把执行日志换到报告下方,所以主容器必须是 flex 列。
+       其余子项不设 order(默认 0),源码顺序保持不变。 */
+    display: flex;
+    flex-direction: column;
+}
+
+/* 常态:表单(0) → 计划(0) → 日志(0) → 图片(0) → 报告(1) → 追问(3) */
+.report-container {
+    order: 1;
+}
+
+.chat-container {
+    order: 3;
+}
+
+/* 报告出完:日志(2)落到报告和追问之间 */
+body.report-done .research-output-container {
+    order: 2;
+}
+
+.desk-head {
+    order: -1;
 }
 
 .ask-group {
@@ -227,7 +500,9 @@ body::before {
     color: var(--rd-text);
     font-size: 15px;
     padding: 12px 14px;
-    min-height: 52px;
+    /* 76px ≈ 两行:占位文案有三个示例,52px 会把第二行裁掉半截。
+       页脚那段 inline script 会按 scrollHeight 继续撑高,min-height 只兜底。 */
+    min-height: 76px;
     line-height: 1.6;
 }
 
@@ -304,10 +579,13 @@ body::before {
     opacity: 1;
 }
 
+/* 卡片内的主动作:跟输入框同宽,左右边缘对齐。
+   (之前它在卡片外、定宽左对齐,底下压着一条满宽的高级设置,三块宽度全不一样。) */
 .ask-submit#submitButton {
     display: block;
     width: 100%;
-    padding: 13px;
+    margin-top: 16px;
+    padding: 12px;
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 2px;
@@ -621,6 +899,71 @@ body::before {
 
 /* -------------------------------------------------------------- 执行日志 */
 
+/* 折叠开关。研究中默认展开;报告出完后自动折叠成一行,点标题栏再展开。 */
+.log-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    width: 18px;
+    color: var(--rd-text-faint);
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.log-toggle:hover {
+    color: var(--rd-accent);
+}
+
+/* 折叠态:箭头指向右 */
+.research-output-container.is-collapsed .log-toggle {
+    transform: rotate(-90deg);
+}
+
+/* 整个标题栏可点(JS 里对 expand 按钮做了排除) */
+#logHeading {
+    cursor: pointer;
+    user-select: none;
+}
+
+.log-count {
+    font-family: var(--rd-mono);
+    font-size: 11.5px;
+    font-weight: 400;
+    letter-spacing: 0.4px;
+    color: var(--rd-text-faint);
+}
+
+.research-output-container.is-collapsed #output,
+.research-output-container.is-collapsed .panel-sub {
+    display: none;
+}
+
+.research-output-container.is-collapsed {
+    padding-bottom: 16px;
+}
+
+.research-output-container.is-collapsed h2 {
+    margin-bottom: 0;
+}
+
+/* 折叠态不用再挂那个转圈指示器 —— 研究已经结束了,留着只是噪音 */
+.research-output-container.is-collapsed .modern-spinner {
+    display: none;
+}
+
+/* 还没开始研究时,一个 320px 高的空黑框很难看。JS 在日志为空时挂这个类。
+   默认不挂 —— 万一 JS 挂了,日志照常显示,降级方向是安全的。 */
+.research-output-container.is-empty {
+    display: none;
+}
+
+/* 报告面板同理:没内容就别占位。这里用 :has() 而不是 JS,因为报告是流式写入
+   #reportContainer 的,CSS 会自己跟着内容出现/消失,不用维护额外状态。 */
+.report-container:has(#reportContainer:empty) {
+    display: none;
+}
+
 #output {
     max-height: 320px;
     overflow-y: auto;
@@ -719,17 +1062,27 @@ body::before {
 
 /* ---------------------------------------------------------------- 页脚 */
 
+/* 页脚只是免责声明和署名,不该占掉一屏。上游还给它加了 rgba 底 + 高斯模糊
+   做成一条厚色带(styles.css:160),一并压掉。 */
 footer {
     text-align: center;
-    padding: 40px 20px 30px;
+    padding: 16px 20px 18px;
     border-top: 1px solid var(--rd-border);
-    margin-top: 40px;
+    margin-top: 20px;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+footer p {
+    margin: 0 !important;
 }
 
 .footer-brand {
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--rd-text-dim);
-    letter-spacing: 1.5px;
+    letter-spacing: 0.4px;
     margin-bottom: 8px;
 }
 

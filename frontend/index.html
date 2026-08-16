@@ -2,13 +2,22 @@
 <html lang="en">
 
 <head>
-    <title>研市 ResearchDesk · 美股基本面研究助手</title>
-    <meta name="description" content="研市 ResearchDesk —— 自动拆解投研问题、检索美股基本面信息、生成带引用的研究报告">
+    <title>研市 ResearchDesk · 公司 · 行业 · 产业链基本面研究</title>
+    <meta name="description" content="研市 ResearchDesk —— 自动判别研究类型、逐层拆解问题、检索取证,产出带来源引用的基本面研究报告">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" href="./static/favicon.ico">
+    <!-- BRAND:标签页图标 = 首页左上角那枚柱状图标记的 SVG 版(内联 data URI,
+         不引入二进制资源、不走 /static)。配色取自 investment-theme.css 的
+         --rd-surface / --rd-accent / --rd-amber,改主题色时这里一起改。 -->
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171f31'/%3E%3Crect x='6' y='18' width='5' height='9' rx='1.5' fill='%232dd4bf'/%3E%3Crect x='13.5' y='9' width='5' height='18' rx='1.5' fill='%232dd4bf'/%3E%3Crect x='21' y='14' width='5' height='13' rx='1.5' fill='%23f0b429'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <!-- IBM Plex:本来就是为技术 / 数据密集界面画的字族,Sans 走正文、Mono 走
+         代号和数字。中文回落系统字。替掉上游的 Montserrat(几何无衬线,放在
+         金融终端语境里没有性格)。 -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/site/styles.css" />
@@ -136,37 +145,45 @@
         </div>
     </div>
 
-    <section class="landing">
-        <div class="hero">
-            <!-- BRAND(共 3 处:<title> / 此处 / 页脚)——改名字搜 "BRAND" 即可 -->
-            <div class="hero-brand">
-                <span class="hero-mark" aria-hidden="true"></span>
-                <h1 class="hero-name">研市<span class="hero-name-en">ResearchDesk</span></h1>
-            </div>
-            <p class="hero-tagline">美股基本面研究助手</p>
-            <p class="hero-facts">
-                <span class="fact"><b>5</b> 类问题</span>
-                <span class="fact-dot"></span>
-                <span class="fact">最深 <b>3</b> 层拆解</span>
-                <span class="fact-dot"></span>
-                <span class="fact">句句带出处</span>
-            </p>
-
-            <!-- 5 类问题 = L0-A 标签集合。首屏亮出来,让人一眼知道它"懂"什么 -->
-            <div class="hero-caps">
-                <span class="cap-chip" data-label="company_profile">公司画像</span>
-                <span class="cap-chip" data-label="company_comparison">公司对比</span>
-                <span class="cap-chip" data-label="sector_landscape">行业横切</span>
-                <span class="cap-chip" data-label="value_chain">产业链纵切</span>
-                <span class="cap-chip" data-label="theme_analysis">主题受益</span>
-            </div>
-
-            <a href="#form" class="hero-cta">开始研究 <i class="fas fa-arrow-down"></i></a>
-        </div>
-    </section>
-
     <main class="container" id="form">
-        <form method="POST" class="mt-3" id="researchForm">
+        <!-- ============================================================
+             顶部区:左品牌 / 右提问,两栏并排,压在一屏之内。
+             旧版是整屏纵向 hero + 下方独立表单,首页被文字占满、必须滚动才
+             能提问;现在把"我是谁"和"你要问什么"并排放,首屏即可用。
+             ============================================================ -->
+        <div class="desk-head">
+            <aside class="desk-brand">
+                <!-- BRAND(共 3 处:<title> / 此处 / 页脚)——改名字搜 "BRAND" 即可 -->
+                <div class="hero-brand">
+                    <span class="hero-mark" aria-hidden="true"></span>
+                    <h1 class="hero-name">研市<span class="hero-name-en">ResearchDesk</span></h1>
+                </div>
+                <p class="hero-tagline">公司 · 行业 · 产业链 基本面研究</p>
+
+                <p class="hero-lede">把一个投研问题,<br>拆成一棵能核查的研究树。</p>
+                <p class="hero-sub">先判断这是哪一类研究,再按对应策略逐层展开检索。每层拆出什么、落到哪几只股票,全程在界面上看得见。</p>
+
+                <!-- ========================================================
+                     签名区:5 条研究路径 + 各自的分解树。
+                     点标签换树。层数、每层扇出、产物数量都取自后端 strategy 的
+                     真实参数(MAX_SEGMENTS=4 / MAX_LEADERS_PER_SEG=2 等),
+                     不是随手画的示意图 —— 改了策略参数记得同步 scripts.js
+                     里的 HERO_ROUTES。
+                     ======================================================== -->
+                <section class="routes" aria-label="五类研究路径">
+                    <p class="routes-eyebrow">它能识别 5 类问题 · 点开看各自怎么拆</p>
+                    <div class="route-tabs" id="routeTabs" role="tablist"></div>
+                    <div class="route-demo" id="routeDemo"></div>
+                </section>
+
+                <!-- 覆盖范围必须写明:公司抽取 prompt(bootstrap_parsers.py)硬性只
+                     认美股上市主体、ADR 放行,非美上市会被剔掉。界面上不交代会让
+                     人误以为能查 A 股 / 港股。 -->
+                <p class="scope-note">覆盖范围 &middot; 美股上市公司(含 ADR) &middot; 上方为示例拆解</p>
+            </aside>
+
+            <div class="desk-ask">
+                <form method="POST" id="researchForm">
             <div class="form-group ask-group">
                 <label for="task" class="agent-question ask-label">想研究什么?</label>
                 <textarea id="task" name="task" class="form-control highlight-connection" placeholder="例:分析英伟达最新季度财务表现 / 美国半导体产业链拆解 / 哪些美股受益于 AI 基建" required autocomplete="on"></textarea>
@@ -189,9 +206,11 @@
                             data-query="Which US-listed stocks are the biggest beneficiaries of the AI infrastructure investment theme?">AI 基建受益股</button>
                     </div>
                 </div>
-            </div>
 
-            <button type="submit" value="开始研究" class="btn btn-primary button-padding ask-submit" id="submitButton">开始研究</button>
+                <!-- 提交按钮放在提问卡片内部:标题 / 输入框 / 示例 / 提交是同一件事,
+                     放在卡片外会变成三块宽度不一的东西上下堆着。 -->
+                <button type="submit" value="开始研究" class="btn btn-primary button-padding ask-submit" id="submitButton">开始研究</button>
+            </div>
 
             <!-- 高级设置:引擎参数收在这里,默认折叠。主界面只保留"问一个问题"这一件事。 -->
             <details class="advanced">
@@ -293,7 +312,9 @@
 
                 </div><!-- /.advanced-body -->
             </details>
-        </form>
+                </form>
+            </div><!-- /.desk-ask -->
+        </div><!-- /.desk-head -->
 
         <!-- Add JSON button above Research Progress section -->
         <div class="margin-div" id="jsonButtonContainer" style="display: none; text-align: right; margin-bottom: 10px;">
@@ -322,9 +343,21 @@
             <div class="plan-stats" id="planStats"></div>
         </div>
 
-        <div class="margin-div research-output-container">
-            <!-- Move spinner to the left side of the text -->
-            <h2><div id="modernSpinner" class="modern-spinner"></div> 执行日志 <button id="expandOutputBtn" class="expand-button" title="展开"><i class="fas fa-expand-alt"></i></button></h2>
+        <!-- 执行日志。研究进行中在报告上方展开;报告出完后 scripts.js 给 <body> 加
+             .report-done,靠 CSS order 换到报告下方并自动折叠。
+             刻意用 order 而不是搬 DOM:#output 挂着自动滚动和 expand 逻辑,
+             appendChild 搬家会触发重排、丢滚动位置。 -->
+        <div class="margin-div research-output-container" id="logBlock">
+            <h2 id="logHeading">
+                <div id="modernSpinner" class="modern-spinner"></div>
+                <button type="button" id="logToggleBtn" class="log-toggle" aria-expanded="true"
+                    aria-controls="output" title="折叠 / 展开执行日志">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <span>执行日志</span>
+                <span class="log-count" id="logCount"></span>
+                <button id="expandOutputBtn" class="expand-button" title="展开"><i class="fas fa-expand-alt"></i></button>
+            </h2>
             <p class="panel-sub">检索、抓取、摘要的实时过程</p>
             <div id="output"></div>
         </div>
@@ -431,7 +464,7 @@
 
     <footer>
         <!-- BRAND(3/3) -->
-        <p class="footer-brand">研市 ResearchDesk &middot; 美股基本面研究助手</p>
+        <p class="footer-brand">研市 ResearchDesk &mdash; 公司 · 行业 · 产业链 基本面研究</p>
         <p class="footer-note">
             研究辅助工具,输出内容不构成投资建议。数字以报告内引用来源为准。
         </p>

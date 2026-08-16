@@ -53,6 +53,18 @@ const GPTResearcher = (() => {
       });
     });
 
+    heroRoutes.init();
+
+    // 执行日志折叠开关。整个标题栏可点,但要放过标题里那个"全屏展开"按钮,
+    // 否则点它会同时触发折叠。
+    const logHeading = document.getElementById('logHeading');
+    if (logHeading) {
+      logHeading.addEventListener('click', (e) => {
+        if (e.target.closest('#expandOutputBtn')) return;
+        researchLog.toggle();
+      });
+    }
+
     document
       .getElementById('copyToClipboard')
       .addEventListener('click', copyToClipboard)
@@ -124,6 +136,20 @@ const GPTResearcher = (() => {
     const historyPanelOpenBtn = document.getElementById('historyPanelOpenBtn');
     const historyPanel = document.getElementById('historyPanel');
     const historyPanelToggle = document.getElementById('historyPanelToggle');
+
+    // 历史抽屉开合时让正文让出 / 收回右侧 320px(样式在 body.history-open)。
+    // 用 MutationObserver 而不是在每个 toggle 点补一行:`.open` 在四处被增删
+    // (打开按钮 / 关闭按钮 / 点击外部 / 恢复历史),盯 class 变化只要一个钩子,
+    // 以后新增 toggle 点也不会漏掉。
+    if (historyPanel) {
+      const syncHistoryReflow = () => {
+        document.body.classList.toggle(
+          'history-open', historyPanel.classList.contains('open'));
+      };
+      new MutationObserver(syncHistoryReflow)
+        .observe(historyPanel, { attributes: true, attributeFilter: ['class'] });
+      syncHistoryReflow();
+    }
 
     if (historyPanelOpenBtn) {
       historyPanelOpenBtn.addEventListener('click', () => {
@@ -1050,6 +1076,230 @@ const GPTResearcher = (() => {
   }
 
   /* ==========================================================================
+     首屏路径切换器(fork 新增)
+     --------------------------------------------------------------------------
+     首屏的主角是"这东西怎么拆问题",不是一段自我介绍。5 个标签对应 L0-A 的 5 类
+     标签,点一下把那类问题的分解树画出来。
+
+     树里的层数、每层扇出、产物数量都对齐后端 strategy 的真实参数:
+       company_profile     depth-1,6 维度,full 模式抽取
+       company_comparison  depth-2,每家 6 维度
+       sector_landscape    depth-2,L1 五条摸底 → 代表公司 → 每家 2 条
+       value_chain         depth-3,MAX_SEGMENTS=4 × MAX_LEADERS_PER_SEG=2
+       theme_analysis      depth-3,MAX_CATEGORIES=4 × MAX_STOCKS_PER_CAT=2
+     改了策略参数请同步这里,否则首屏会对面试官说谎。
+     ========================================================================= */
+  const HERO_ROUTES = [
+    {
+      key: 'company_profile', cn: '公司画像',
+      q: '分析英伟达最新季度财务表现',
+      levels: [
+        {
+          tag: 'L1', desc: '按 6 个维度并行检索', count: 6,
+          nodes: [{ name: 'NVIDIA Corporation', tickers: ['NVDA'] }],
+        },
+      ],
+      total: 6, yield: '1 份完整财务卡片',
+    },
+    {
+      key: 'company_comparison', cn: '公司对比',
+      q: 'NVDA / AMD / INTC 对比',
+      levels: [
+        {
+          tag: 'L1', desc: '识别对比对象', count: 1,
+          nodes: [
+            { name: 'NVIDIA Corporation', tickers: ['NVDA'] },
+            { name: 'Advanced Micro Devices', tickers: ['AMD'] },
+            { name: 'Intel Corporation', tickers: ['INTC'] },
+          ],
+        },
+        { tag: 'L2', desc: '每家 6 个可比维度', count: 18 },
+      ],
+      total: 19, yield: '3 份对比指标卡片',
+    },
+    {
+      key: 'sector_landscape', cn: '行业横切',
+      q: '美国电动车电池行业格局',
+      levels: [
+        {
+          tag: 'L1', desc: '摸行业基本面,抽出代表公司', count: 5,
+          nodes: [
+            { name: 'Tesla', tickers: ['TSLA'] },
+            { name: 'Solid Power', tickers: ['SLDP'] },
+            { name: 'American Battery Technology', tickers: ['ABAT'] },
+            { name: 'Dragonfly Energy', tickers: ['DFLI'] },
+          ],
+        },
+        { tag: 'L2', desc: '每家 2 条深挖', count: 8 },
+      ],
+      total: 13, yield: '4 份 mini 财务卡片',
+    },
+    {
+      key: 'value_chain', cn: '产业链纵切',
+      q: '美国半导体产业链拆解',
+      levels: [
+        { tag: 'L1', desc: '拆出价值链环节', count: 1 },
+        {
+          tag: 'L2', desc: '每个环节找出龙头', count: 12,
+          nodes: [
+            { name: 'IP & EDA', tickers: ['CDNS', 'SNPS'] },
+            { name: '芯片设计', tickers: ['NVDA', 'AMD'] },
+            { name: '半导体设备', tickers: ['AMAT', 'ASML'] },
+            { name: '晶圆代工', tickers: ['TSM', 'GFS'] },
+          ],
+        },
+        { tag: 'L3', desc: '每家龙头 2 条财务', count: 16 },
+      ],
+      total: 29, yield: '8 份 mini 财务卡片',
+    },
+    {
+      key: 'theme_analysis', cn: '主题受益',
+      q: '哪些美股受益于 AI 基建',
+      levels: [
+        { tag: 'L1', desc: '拆出受益路径', count: 1 },
+        {
+          tag: 'L2', desc: '每条路径找最受益标的', count: 12,
+          nodes: [
+            { name: '算力芯片', tickers: ['NVDA', 'AVGO'] },
+            { name: '数据中心电力', tickers: ['VRT', 'ETN'] },
+            { name: '网络与互连', tickers: ['ANET', 'CIEN'] },
+            { name: '数据中心地产', tickers: ['DLR', 'EQIX'] },
+          ],
+        },
+        { tag: 'L3', desc: '每只标的 2 条验证', count: 16 },
+      ],
+      total: 29, yield: '8 份 mini 财务卡片',
+    },
+  ];
+
+  const heroRoutes = (() => {
+    const esc = (s) => String(s).replace(/[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const renderDemo = (r) => {
+      const demo = document.getElementById('routeDemo');
+      if (!demo) return;
+
+      const levels = r.levels.map((lv) => {
+        const nodes = (lv.nodes || []).map((n) =>
+          `<div class="rl-node"><span class="rl-node-name">${esc(n.name)}</span>` +
+          n.tickers.map((t) => `<span class="tk">${esc(t)}</span>`).join('') +
+          `</div>`).join('');
+        return `<div class="rl">` +
+          `<span class="rl-tag">${esc(lv.tag)}</span>` +
+          `<span class="rl-desc">${esc(lv.desc)}</span>` +
+          `<span class="rl-count">${lv.count}</span>` +
+          `</div>` + (nodes ? `<div class="rl-nodes">${nodes}</div>` : '');
+      }).join('');
+
+      demo.innerHTML =
+        `<p class="route-q">${esc(r.q)}</p>` +
+        `<div class="route-levels">${levels}</div>` +
+        `<p class="route-yield"><b>${r.total}</b> 条检索 &middot; ${esc(r.yield)}</p>`;
+
+      // 重启一次入场动画:换树时给个短促的位移淡入,让"切换"这件事被看见
+      demo.classList.remove('is-in');
+      void demo.offsetWidth;
+      demo.classList.add('is-in');
+    };
+
+    const select = (key) => {
+      const r = HERO_ROUTES.find((x) => x.key === key) || HERO_ROUTES[0];
+      document.querySelectorAll('#routeTabs .route-tab').forEach((b) => {
+        const on = b.dataset.key === r.key;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+      renderDemo(r);
+    };
+
+    return {
+      init() {
+        const tabs = document.getElementById('routeTabs');
+        if (!tabs) return;
+        tabs.innerHTML = HERO_ROUTES.map((r) =>
+          `<button type="button" class="route-tab" role="tab" data-key="${r.key}"` +
+          ` aria-selected="false">${esc(r.cn)}</button>`).join('');
+        tabs.addEventListener('click', (e) => {
+          const btn = e.target.closest('.route-tab');
+          if (btn) select(btn.dataset.key);
+        });
+        // 默认展示 depth-3 的产业链纵切:它是拆得最深的一条,最能说明问题
+        select('value_chain');
+      },
+    };
+  })();
+
+  /* ==========================================================================
+     执行日志的显示状态(fork 新增)
+     --------------------------------------------------------------------------
+     研究进行中:日志在报告上方、展开、自动滚动 —— 这时它是主要内容。
+     报告出完后:日志换到报告下方并折叠成一行 —— 这时报告才是主角,过程留作
+     可查证的凭据。
+
+     换位靠 <body>.report-done + CSS order 完成,不搬 DOM:#output 上挂着自动
+     滚动和"全屏展开"逻辑,用 appendChild 搬家会触发重排、丢滚动位置。
+     ========================================================================= */
+  const researchLog = (() => {
+    const block = () => document.getElementById('logBlock');
+    const countEl = () => document.getElementById('logCount');
+    const toggleBtn = () => document.getElementById('logToggleBtn');
+
+    const refreshCount = () => {
+      const el = countEl();
+      const out = document.getElementById('output');
+      if (!el || !out) return;
+      const n = out.childElementCount;
+      el.textContent = n ? `(${n} 条)` : '';
+    };
+
+    const setCollapsed = (collapsed) => {
+      const b = block();
+      if (!b) return;
+      b.classList.toggle('is-collapsed', collapsed);
+      const btn = toggleBtn();
+      if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
+      if (collapsed) refreshCount();
+    };
+
+    /** 日志为空时整块隐藏,避免首屏挂一个 320px 的空黑框 */
+    const syncVisibility = () => {
+      const b = block();
+      const out = document.getElementById('output');
+      if (!b || !out) return;
+      b.classList.toggle('is-empty', out.childElementCount === 0);
+    };
+
+    return {
+      refreshCount,
+      syncVisibility,
+      /** 研究开始:回到报告上方、展开、显示 */
+      active() {
+        document.body.classList.remove('report-done');
+        setCollapsed(false);
+        const b = block();
+        if (b) b.classList.remove('is-empty');
+      },
+      /** 未开始 / 已复位:回到报告上方并展开,空日志则隐藏 */
+      reset() {
+        document.body.classList.remove('report-done');
+        setCollapsed(false);
+        syncVisibility();
+      },
+      /** 报告完成:落到报告下方 + 折叠 */
+      settle() {
+        document.body.classList.add('report-done');
+        setCollapsed(true);
+        syncVisibility();
+      },
+      toggle() {
+        const b = block();
+        if (b) setCollapsed(!b.classList.contains('is-collapsed'));
+      },
+    };
+  })();
+
+  /* ==========================================================================
      研究计划面板(fork 新增)
      --------------------------------------------------------------------------
      后端 gpt_researcher/investment/ 里的各 strategy 通过 stream_output 推送带
@@ -1534,6 +1784,8 @@ const GPTResearcher = (() => {
         status = 'Research in progress...'
         setReportActionsStatus('disabled')
         isResearchActive = true;
+        // 日志回到报告上方并展开 —— 研究过程此刻是主要内容
+        researchLog.active();
         // Make the research icon spin
         updateResearchIcon(true);
         // Hide chat container during research
@@ -1558,6 +1810,9 @@ const GPTResearcher = (() => {
         isResearchActive = false;
         // Stop the research icon spinning
         updateResearchIcon(false);
+
+        // 报告已完整呈现:日志让位 —— 换到报告下方并折叠,点标题栏可展开
+        researchLog.settle();
 
         // Show download panels and hide feature panels when research is finished
         showDownloadPanels();
@@ -1602,6 +1857,8 @@ const GPTResearcher = (() => {
         isResearchActive = false;
         // Make sure the research icon is not spinning initially
         updateResearchIcon(false);
+        // 回到未开始状态:日志复位到报告上方并展开;空日志整块隐藏
+        researchLog.reset();
         // Hide the copy button in the header
         const initialCopyBtnTop = document.getElementById('copyToClipboardTop');
         if (initialCopyBtnTop) {
