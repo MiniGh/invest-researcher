@@ -168,7 +168,14 @@ class ContextCompressor:
             direct_docs = [
                 Document(
                     page_content=doc.get('raw_content', ''),
-                    metadata=doc
+                    # metadata 必须和 standard path(SearchAPIRetriever)保持同形:
+                    # pretty_print_docs 读的是 "source" / "title",而 scraped page
+                    # 里 URL 的键名是 "url" —— 直接 metadata=doc 会让来源取成 None,
+                    # 上下文写出 "Source: None",写作模型无 URL 可引(引用退化成 `](#)`)。
+                    metadata={
+                        "title": doc.get("title", ""),
+                        "source": doc.get("url", ""),
+                    },
                 )
                 for doc in self.documents[:max_results]
             ]
