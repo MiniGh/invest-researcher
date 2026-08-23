@@ -59,4 +59,5 @@ prepare/
 .agents/
 
 # Slice 2b 调试临时文件(每次跑测试会被覆盖,不进版本控制)
-tmp.md
+/tmp/
+/scripts/
