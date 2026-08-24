@@ -156,6 +156,9 @@ class InvestmentResearcher:
             logger.warning(f"L0-A 分类抛错(意外),fallback 走 其他 兜底:{e}")
             classification = ClassificationResult(label="其他")
 
+        # 供调用方(评估脚本等)在 run() 之后取回 L0-A 判定,免得重复调一次分类器 LLM
+        self.classification = classification
+
         # 2. 高层路由 log
         await self._log(f"🎯 L0-A 标签:{classification.label}")
         if classification.label == "company_profile":

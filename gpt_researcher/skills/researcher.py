@@ -913,13 +913,20 @@ class ResearchConductor:
                     raw_content = result.get("raw_content") or result.get("body")
                     if url and raw_content and len(raw_content) > 100:
                         # Retriever already fetched full content (e.g. PubMed Central)
+                        title = result.get("title", "")
                         prefetched_content.append(
                             {
                                 "url": url,
+                                "title": title,
                                 "raw_content": raw_content,
                             }
                         )
-                        self.researcher.add_research_sources([{"url": url}])
+                        # 和抓取路径(browse_urls → add_research_sources(scraped_content))
+                        # 保持同形:必须带正文,否则 research_sources 里 prefetched 来源
+                        # 只有一个 URL,原文不留痕 —— 评估时无法回溯核对。
+                        self.researcher.add_research_sources(
+                            [{"url": url, "title": title, "raw_content": raw_content}]
+                        )
                     elif url:
                         new_search_urls.append(url)
             except Exception as e:

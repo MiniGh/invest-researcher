@@ -1,0 +1,5 @@
+{"id": "P1", "query": "Analyze Micron Technology (MU): business, latest financial performance, competitive position, and risks", "expected_label": "company_profile", "ref": "example/MU-中信建投-首次覆盖.pdf"}
+{"id": "C1", "query": "Compare Microsoft (MSFT), Amazon (AMZN), and Meta (META) on AI capital expenditure and cloud monetization", "expected_label": "company_comparison", "ref": "example/美股科技行业巨头业绩复盘_业务提速与 ROI_多维验证,硬件需求步入强确认阶段.pdf"}
+{"id": "S1", "query": "Give me a landscape of the US memory and HBM industry", "expected_label": "sector_landscape", "ref": "example/存储-中银证券-行业深度2601.pdf"}
+{"id": "V1", "query": "Analyze the value chain of the AI data center infrastructure industry from upstream to downstream", "expected_label": "value_chain", "ref": "example/AI 基建,光板铜电 —— GTC 前瞻.pdf"}
+{"id": "T1", "query": "Which US-listed stocks are the biggest beneficiaries of the AI data center power demand theme?", "expected_label": "theme_analysis", "ref": "https://36kr.com/p/3701459429519490"}
