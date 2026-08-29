@@ -9,9 +9,20 @@ DEFAULT_CONFIG: BaseConfig = {
     # "FAST_LLM": "openai:gpt-4o-mini",
     # "SMART_LLM": "openai:gpt-4.1",  # Has support for long responses (2k+ words).
     # "STRATEGIC_LLM": "openai:o4-mini",  # Can be used with o1 or o3, please note it will make tasks slower.
-    "FAST_LLM": "deepseek:deepseek-v4-flash",
-    "SMART_LLM": "deepseek:deepseek-v4-flash",  # Has support for long responses (2k+ words).
-    "STRATEGIC_LLM": "deepseek:deepseek-v4-pro",  # Can be used with o1 or o3, please note it will make tasks slower.
+    #
+    # --- 备选 A:DeepSeek 官方直连(需要 DEEPSEEK_API_KEY 有余额)---
+    # 与下面启用中的配置是同一批模型,切回来只需把这三行取消注释、注释掉下面三行。
+    # "FAST_LLM": "deepseek:deepseek-v4-flash",
+    # "SMART_LLM": "deepseek:deepseek-v4-flash",
+    # "STRATEGIC_LLM": "deepseek:deepseek-v4-pro",
+    #
+    # --- 当前启用:经硅基流动调用同一批 DeepSeek 模型 ---
+    # 走 openai 兼容接口,读 OPENAI_API_KEY + OPENAI_BASE_URL
+    # (base.py:105 会把 OPENAI_BASE_URL 注入 ChatOpenAI),与 EMBEDDING 共用同一套凭据。
+    # 模型本体与备选 A 相同,因此切换不改变输出行为。
+    "FAST_LLM": "openai:deepseek-ai/DeepSeek-V4-Flash",
+    "SMART_LLM": "openai:deepseek-ai/DeepSeek-V4-Flash",  # Has support for long responses (2k+ words).
+    "STRATEGIC_LLM": "openai:deepseek-ai/DeepSeek-V4-Pro",  # Can be used with o1 or o3, please note it will make tasks slower.
     "FAST_TOKEN_LIMIT": 3000,
     "SMART_TOKEN_LIMIT": 6000,
     "STRATEGIC_TOKEN_LIMIT": 4000,
