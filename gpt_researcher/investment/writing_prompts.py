@@ -7,14 +7,109 @@ Slice 3.0 只做 `company_profile` 一份;Slice 3.2 / 3.3 逐步补足
 
 设计原则(为什么 prompt 是这样写的):
 - 英文:LLM 处理英文 token 更高效,且报告本身就是英文(LANGUAGE=english)
-- 6 段固定骨架:跟 Slice 2b extractor 的指标 schema 对齐(business/financials/competitive/
+- 固定骨架:跟 Slice 2b extractor 的指标 schema 对齐(business/financials/competitive/
   catalysts/risks/outlook),context 注入的 metrics markdown 自然落到 financials 段
 - 引用纪律:强约束"数字必须来自 context + 内联 source URL",防止 LLM 编数字
 - 拒答策略:"Data not available" 强于 LLM 凭直觉补充,跟项目 honesty boundary 一致
-- 长度 1000-1500 词:给 SMART_LLM 充分空间但不至于跑偏
+
+Slice E 依据「五类报告 vs 券商研报」的信息完整性对照结果,新增了四条跨模板
+规则(见下方共享片段):开篇摘要与结论式标题、非美股主要厂商的写入与标注、
+社交媒体不得作为数字来源与独立来源数披露、第三方评级与目标价的转述纪律。
 """
 
-WRITING_PROMPT_COMPANY_PROFILE = """\
+# ---------------------------------------------------------------------------
+# 五套模板共用的片段。抽出来集中维护,避免五份拷贝各自漂移。
+#
+# 注意:本文件的模板正文里含有字面花括号(例如 "{growth | profitability | ...}"
+# 与 "### {{segment}}"),因此模板一律用字符串拼接组合,不能改写成 f-string。
+# ---------------------------------------------------------------------------
+
+# 开篇摘要 + 结论式章节标题。
+#
+# 对照发现:五份报告全部没有开篇摘要,读者需要读完全文才知道结论;而参考研报
+# 无一例外把结论放在第一屏。章节标题方面,现有模板产出的是通用名词槽位
+# ("Business overview" / "Competitive position"),换成任何一家公司都成立;
+# 参考研报的标题本身就是判断("DRAM 及 HBM 呈三足鼎立之势,NAND 格局更为分散"),
+# 因此它的目录即是一份摘要。
+#
+# 结论式标题的风险是证据不足时模型硬凑判断,所以附了退回名词标题的兜底。
+_SUMMARY_AND_HEADINGS = """
+Before section 1, add a section titled "Summary":
+- 4-6 sentences stating your actual findings — not a description of what the
+  report will cover.
+- Include at least one point that cuts against the positive case.
+- Every claim here must be supported by material in the body. Do not introduce
+  a fact that appears nowhere else in the report.
+
+Write section headings that state a finding rather than name a topic — for
+example "Memory pricing is the single swing factor in FY2026 earnings" rather
+than "Pricing". A heading of this kind is a claim, so it must be one the
+section's own cited data supports. Where the context does not support a
+defensible claim for a section, use a plain descriptive heading instead of
+asserting something you cannot evidence.
+"""
+
+# 非美股主要厂商的处理。
+#
+# 对照发现:HBM 行业报告里,占供给约 79% 的 SK 海力士与三星因非美股被挡在正文
+# 之外,只出现在一句脚注中,结果整份"行业图景"实际只写了采购方。产业链报告同理,
+# 被漏掉的非美股供应商恰恰是美股公司的直接竞争者与替代者。
+#
+# 结论:行业分析层面写全,可投资性单独标注。
+_NON_US_PLAYERS = """
+Name the leading players in this market even when they are not US-listed —
+Samsung Electronics, SK hynix, and companies listed only in Asia or Europe are
+frequently the largest suppliers in their industry. Excluding them distorts the
+competitive picture: a sector whose biggest suppliers are missing reads as if
+its buyers were the whole industry. On first mention, mark such a company
+"not US-listed — outside the investable scope of this report". Keep it out of
+any list presented as investable, and do not give it a financial snapshot card;
+snapshot cards remain US-listed only.
+"""
+
+# 全部五套模板共用的硬约束。
+#
+# 其中三条与改动前逐字相同(数字必须来自 context / 内联 source URL / 避免炒作
+# 语言);另外三条是 Slice E 新增:
+#
+#   - 社交媒体不得作为数字来源:实测有报告用 instagram.com 的短视频支撑
+#     "中东局势推高能耗成本" 这一论断。
+#   - 独立来源数披露:实测有报告 91% 的引用回溯到同一个域名,而"逐数字挂链接"
+#     这个正确做法反而把来源单一这件事盖住了。
+#   - 第三方评级与目标价:改动前写的是 "Avoid ... price predictions",模型将其
+#     理解为"不要自己预测",于是转述他人共识不算违规,目标价照样进了报告
+#     (在三份报告中重复出现)。现在把"自己产出"与"转述他人"分开写:前者禁止,
+#     后者允许但必须标注机构与日期、与现价矛盾时须点明、且不得作为自身结论的
+#     前提。实测案例:引用的共识目标价上限 $536,而当时市价已达 $963。
+_SHARED_CONSTRAINTS = """\
+- Use figures ONLY when they appear in the provided context. Never fabricate.
+- For every cited number, include the source URL inline (markdown link).
+- Do not use social media posts, video descriptions, or user-generated forum
+  content as the source for any figure — this includes x.com, instagram.com,
+  youtube.com, reddit.com, and personal blog or newsletter posts. Where a
+  figure is available only from such a source, either omit it or state plainly
+  that it is unverified, and do not build an argument on it.
+- Directly beneath the report title, add a single line of the form
+  "Sources: N independent domains." N is the number of distinct domains you
+  actually cite. If one domain supplies more than half of your cited figures,
+  name that domain on the same line.
+- Third-party analyst ratings, price targets, and valuation verdicts
+  ("undervalued", "outperform", sector rankings) may be reported as facts about
+  market expectations. Whenever you report one you MUST:
+  (a) name the institution and the as-of date;
+  (b) say so explicitly where current data in the context contradicts it — for
+      instance where the market price already exceeds the quoted target;
+  (c) never use it as a premise for a conclusion of your own. Report what
+      others expect; do not adopt their view as the report's view.
+- Never produce a price target, rating, or buy/sell call of your own.
+- Avoid hype and PR language.
+"""
+
+_HARD_CONSTRAINTS_HEADER = "\nHard constraints:\n"
+
+
+WRITING_PROMPT_COMPANY_PROFILE = (
+    """\
 You are writing a fundamental analysis report on a single US-listed public company.
 Structure the report into the following six sections, in this exact order:
 
@@ -38,20 +133,24 @@ Structure the report into the following six sections, in this exact order:
 
 6. **Forward outlook** — company guidance, analyst consensus (if found in
    context), key upcoming milestones or catalysts.
-
-Hard constraints:
-- Use figures ONLY when they appear in the provided context. Never fabricate
-  numbers. Never extrapolate to numbers not explicitly stated.
-- When citing a number, include the source URL inline (markdown link).
+"""
+    + _SUMMARY_AND_HEADINGS
+    + _NON_US_PLAYERS
+    + _HARD_CONSTRAINTS_HEADER
+    + _SHARED_CONSTRAINTS
+    + """\
+- Never extrapolate to numbers not explicitly stated.
 - If a section has insufficient data in the provided context, write
   "Data not available in current sources" rather than guessing or filling
   with generic prose.
-- Avoid hype, PR language, and price predictions.
 - Total length target: 1000-1500 words.
 - Write in clear, analytical, professional prose. Section headings as H2.
 """
+)
 
-WRITING_PROMPT_COMPANY_COMPARISON = """\
+
+WRITING_PROMPT_COMPANY_COMPARISON = (
+    """\
 You are writing a comparative analysis report on 2-4 US-listed public companies.
 Build the report around an aligned comparison matrix; each company contributes
 one column (or one row block, your choice), and every dimension is compared
@@ -85,18 +184,20 @@ Structure:
 5. **Verdict by lens** — short paragraphs answering "who looks better if you
    prioritize {growth | profitability | valuation | scale | optionality}".
    Do NOT give a single buy/sell recommendation.
-
-Hard constraints:
-- Use figures ONLY when they appear in the provided context. Never fabricate.
-- For every cited number, include the source URL inline (markdown link).
+"""
+    + _SUMMARY_AND_HEADINGS
+    + _HARD_CONSTRAINTS_HEADER
+    + _SHARED_CONSTRAINTS
+    + """\
 - "N/A" is mandatory for missing cells — do not silently drop dimensions.
-- Avoid hype, PR language, and price predictions.
 - Total length target: 1200-1800 words.
 - Section headings as H2; table headers as required by markdown.
 """
+)
 
 
-WRITING_PROMPT_SECTOR_LANDSCAPE = """\
+WRITING_PROMPT_SECTOR_LANDSCAPE = (
+    """\
 You are writing a landscape report on a single US industry / sector. The
 provided context is gathered in two layers:
   - Layer 1: macro view of the sector (market size, drivers, headwinds,
@@ -140,20 +241,23 @@ Structure:
 
 6. **Forward outlook** — sector-level milestones, regulatory calendar,
    structural inflection points.
-
-Hard constraints:
-- Use figures ONLY when they appear in the provided context. Never fabricate.
-- For every cited number, include the source URL inline (markdown link).
+"""
+    + _SUMMARY_AND_HEADINGS
+    + _NON_US_PLAYERS
+    + _HARD_CONSTRAINTS_HEADER
+    + _SHARED_CONSTRAINTS
+    + """\
 - Keep section numbering exactly as 1, 2, 3, 4, 5, 6 above. Do not renumber
   Forward Outlook as Section 5 even if you choose to skip player snapshots
   — keep its number 6 in the output.
-- Avoid hype, PR language, and price predictions.
 - Total length target: 1500-2200 words.
 - Section headings as H2; player cards as H3 inside section 5.
 """
+)
 
 
-WRITING_PROMPT_VALUE_CHAIN = """\
+WRITING_PROMPT_VALUE_CHAIN = (
+    """\
 You are writing a value-chain (vertical) analysis of a single US industry. The
 provided context is gathered in three layers:
   - Layer 1: a decomposition of the industry value chain into segments
@@ -193,20 +297,23 @@ Structure the report by walking DOWN the value chain, segment by segment:
 4. **Forward outlook** — structural shifts, reshoring / vertical-integration
    moves, regulatory or technological inflection points that could re-route
    value between segments.
-
-Hard constraints:
-- Use figures ONLY when they appear in the provided context. Never fabricate.
-- For every cited number, include the source URL inline (markdown link).
+"""
+    + _SUMMARY_AND_HEADINGS
+    + _NON_US_PLAYERS
+    + _HARD_CONSTRAINTS_HEADER
+    + _SHARED_CONSTRAINTS
+    + """\
 - Keep section numbering exactly as 1, 2, 3, 4 above.
 - Cover EVERY segment from the Layer 1 list; do not silently drop a segment
   just because its company cards are sparse.
-- Avoid hype, PR language, and price predictions.
 - Total length target: 1600-2400 words.
 - Section headings as H2; per-segment blocks and company cards as H3.
 """
+)
 
 
-WRITING_PROMPT_THEME_ANALYSIS = """\
+WRITING_PROMPT_THEME_ANALYSIS = (
+    """\
 You are writing a thematic (investment-narrative) analysis of a single theme.
 The provided context is gathered in three layers:
   - Layer 1: the driving narrative + catalysts, time horizon + milestones, and
@@ -244,14 +351,18 @@ Structure:
 
 5. **Forward outlook** — net read: where the theme is most/least de-risked, and
    which category offers the cleanest exposure (without a buy/sell call).
-
-Hard constraints:
-- Use figures ONLY when they appear in the provided context. Never fabricate.
-- For every cited number, include the source URL inline (markdown link).
+"""
+    + _SUMMARY_AND_HEADINGS
+    + _NON_US_PLAYERS
+    + _HARD_CONSTRAINTS_HEADER
+    + _SHARED_CONSTRAINTS
+    + """\
 - Keep section numbering exactly as 1, 2, 3, 4, 5 above.
 - Cover EVERY category from the Layer 2 list; do not silently drop a category.
-- Stocks must be US-listed (the upstream pipeline already filters for this).
-- Avoid hype, PR language, and price predictions.
+- Stock cards must be US-listed (the upstream pipeline already filters for
+  this). Non-US-listed companies may appear in the narrative under the rule
+  above, but never as a stock card.
 - Total length target: 1600-2400 words.
 - Section headings as H2; per-category blocks and stock cards as H3.
 """
+)
