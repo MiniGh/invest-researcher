@@ -45,7 +45,15 @@ DEFAULT_CONFIG: BaseConfig = {
     "REPORT_SOURCE": "web",
     "DOC_PATH": "./my-docs",
     "PROMPT_FAMILY": "default",
-    "LLM_KWARGS": {},
+    # 给每次 LLM 调用加超时与重试。
+    #
+    # 不加的话请求会无限挂起:实测一次 value_chain 研究在写报告阶段卡死 59 分钟,
+    # 进程 67 分钟只消耗 6 秒 CPU,始终挂着一条到代理的连接等响应,不会自行恢复。
+    # 底层 ChatOpenAI 默认不设 timeout,一次丢包就永久等待。
+    #
+    # 600 秒的依据:同一次运行里正常调用耗时为 8s / 86s / 271s,最长约 4.5 分钟,
+    # 留出充分余量;流式响应下该值是"多久没有新数据"而非总时长,更不会误杀。
+    "LLM_KWARGS": {"timeout": 600, "max_retries": 2},
     "EMBEDDING_KWARGS": {"chunk_size": 64},
     "VERBOSE": False,
     # Deep research specific settings
