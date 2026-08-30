@@ -86,13 +86,24 @@ def main() -> None:
     args = p.parse_args()
 
     scores: list[TraceabilityScore] = []
+    skipped: list[str] = []
     for path in sorted(glob.glob(str(Path(args.results_dir) / "*.json"))):
-        scores.append(score_artifact(ResearchArtifact.load(path)))
+        artifact = ResearchArtifact.load(path)
+        # 写报告失败的快照只有证据、没有正文,打分没有意义,且会拉低整体统计。
+        if not artifact.report_md.strip():
+            skipped.append(f"{artifact.research_id} [{artifact.label}]")
+            continue
+        scores.append(score_artifact(artifact))
     for path in args.markdown:
         md = Path(path).read_text(encoding="utf-8")
         scores.append(score_report(md, source_urls=None, research_id=Path(path).stem, label="(无快照)"))
 
     print_board(scores)
+
+    if skipped:
+        print(f"\n已跳过 {len(skipped)} 份写报告失败的快照(仅有证据、无正文):")
+        for name in skipped:
+            print(f"    {name}")
 
 
 if __name__ == "__main__":

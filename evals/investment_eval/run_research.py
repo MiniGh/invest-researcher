@@ -119,16 +119,27 @@ async def run_one(case: dict, results_dir: Path) -> ResearchArtifact | None:
             "case_id": case.get("id"),
         },
     )
+    # 写报告失败时 report_md 会是空串,但研究阶段的证据仍然值钱(一次 value_chain
+    # 采集了 150 篇资料、18 万字,耗时 38 分钟)。所以照常落盘、标记 report_ok=False,
+    # 但不计入成功 —— 空报告无法评估,混进看板会污染统计。
+    artifact.run_config["report_ok"] = bool(artifact.report_md.strip())
     path = artifact.save(results_dir)
 
     traceable = sum(1 for c in chunks if c.has_real_source)
     flag = "" if expected in (None, label) else f"  ⚠️ 期望 {expected}"
-    logger.info(
-        "✔ %s | L0-A=%s%s | 报告 %d 字符 | 卷宗 %d 篇 | 上下文块 %d(带真 URL %d)| %.0fs → %s",
-        artifact.research_id, label, flag, len(artifact.report_md),
-        len(artifact.sources), len(chunks), traceable,
-        time.time() - t0, path.name,
+    detail = (
+        "L0-A=%s%s | 报告 %d 字符 | 卷宗 %d 篇 | 上下文块 %d(带真 URL %d)| %.0fs → %s"
+        % (label, flag, len(artifact.report_md), len(artifact.sources),
+           len(chunks), traceable, time.time() - t0, path.name)
     )
+    if not artifact.run_config["report_ok"]:
+        logger.error(
+            "✘ %s | 写报告失败,产出为空(研究阶段的证据已保留,可据此重写)| %s",
+            artifact.research_id, detail,
+        )
+        return None
+
+    logger.info("✔ %s | %s", artifact.research_id, detail)
     return artifact
 
 

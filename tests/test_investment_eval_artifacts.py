@@ -127,3 +127,22 @@ def test_source_urls_excludes_placeholders():
         sources=[SourceDoc(url="None"), SourceDoc(url=""), SourceDoc(url="https://ok.com")],
     )
     assert art.source_urls == {"https://ok.com"}
+
+
+def test_empty_report_snapshot_is_still_loadable_and_flagged():
+    """写报告失败时仍要保留研究证据,但必须能被识别出来。
+
+    实测一次 value_chain 运行在写报告阶段因网络中断失败,产出 0 字符,而研究
+    阶段已采集 150 篇资料、18 万字、耗时 38 分钟。这份证据值得保留(可据此重写),
+    但绝不能当成成功计入统计 —— 空报告的溯源率分母为 0,会把看板算歪。
+    """
+    art = ResearchArtifact(
+        research_id="rid_empty", query="q", label="value_chain", created_at="t",
+        report_md="",
+        sources=[SourceDoc(url="https://example.com/a", raw_content="x" * 500)],
+        run_config={"report_ok": False},
+    )
+
+    assert not art.report_md.strip()
+    assert art.run_config["report_ok"] is False
+    assert art.sources, "证据必须保留下来"
