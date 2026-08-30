@@ -48,6 +48,9 @@ def test_summary_section_is_required(label_and_prompt):
     _, prompt = label_and_prompt
     assert 'Before section 1, add a section titled "Summary"' in prompt
     assert "cuts against the positive case" in prompt
+    # T1 实测把摘要写成了 **Summary** 而非 ## Summary —— 模板此前没规定层级
+    assert "as an H2 heading (`## Summary`)" in prompt
+    assert "Bold text is not a heading" in prompt
 
 
 def test_headings_must_state_a_finding_with_fallback(label_and_prompt):
@@ -76,9 +79,13 @@ def test_third_party_targets_allowed_with_hygiene_rules(label_and_prompt):
     """A:转述允许,但必须标机构与日期、与现价矛盾要点明、不得作为自身结论前提。"""
     _, prompt = label_and_prompt
     assert "may be reported as facts about market expectations" in prompt
-    assert "name the institution and the as-of date" in prompt
+    # 实测 4 次触发全部漏掉 as-of 日期 —— 原先规则写在嵌套的 (a)(b)(c) 里,
+    # 模型只执行了最前面部分。改为一个必须照抄的固定格式。
+    assert "<Institution> (<as-of date>): <rating or verdict>, target <value>" in prompt
+    assert "date not stated in source" in prompt
+    assert "never drop the slot" in prompt
     assert "market price already exceeds the quoted target" in prompt
-    assert "never use it as a premise for a conclusion of your own" in prompt
+    assert "Never use a third-party rating or target as a premise" in prompt
 
 
 def test_model_may_not_produce_its_own_rating(label_and_prompt):

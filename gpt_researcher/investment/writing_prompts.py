@@ -34,7 +34,8 @@ Slice E 依据「五类报告 vs 券商研报」的信息完整性对照结果,�
 #
 # 结论式标题的风险是证据不足时模型硬凑判断,所以附了退回名词标题的兜底。
 _SUMMARY_AND_HEADINGS = """
-Before section 1, add a section titled "Summary":
+Before section 1, add a section titled "Summary" as an H2 heading (`## Summary`).
+Bold text is not a heading — use `##`:
 - 4-6 sentences stating your actual findings — not a description of what the
   report will cover.
 - Include at least one point that cuts against the positive case.
@@ -95,12 +96,20 @@ _SHARED_CONSTRAINTS = """\
   name that domain on the same line.
 - Third-party analyst ratings, price targets, and valuation verdicts
   ("undervalued", "outperform", sector rankings) may be reported as facts about
-  market expectations. Whenever you report one you MUST:
-  (a) name the institution and the as-of date;
-  (b) say so explicitly where current data in the context contradicts it — for
-      instance where the market price already exceeds the quoted target;
-  (c) never use it as a premise for a conclusion of your own. Report what
-      others expect; do not adopt their view as the report's view.
+  market expectations, but ONLY written in this exact form:
+      <Institution> (<as-of date>): <rating or verdict>, target <value>
+  Worked examples:
+      Tickeron (2026-08-14): Strong Buy consensus, average 12-month target $1,250
+      Morningstar (2026-05-01): utilities sector 5% undervalued
+  Where the context gives no date for the figure, fill the date slot with
+  "date not stated in source" — never drop the slot. Where the context names no
+  institution, do not report the figure at all.
+- Immediately after any such figure, state whether other data in the context
+  contradicts it — for instance where the market price already exceeds the
+  quoted target. Write either "consistent with current price" or the specific
+  conflict. Do not leave this unstated.
+- Never use a third-party rating or target as a premise for a conclusion of your
+  own. Report what others expect; do not adopt their view as the report's view.
 - Never produce a price target, rating, or buy/sell call of your own.
 - Avoid hype and PR language.
 """
