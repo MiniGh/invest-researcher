@@ -934,6 +934,7 @@ const GPTResearcher = (() => {
         allReports += data.output;
         scheduleReportRender(allReports, converter);
       } else if (data.type === 'path') {
+        investmentPlan.finish();   // 停表,状态条切成完成态
         updateState('finished')
         downloadLinkData = updateDownloadLink(data)
         isResearchActive = false;
@@ -1084,7 +1085,7 @@ const GPTResearcher = (() => {
      树里的层数、每层扇出、产物数量都对齐后端 strategy 的真实参数:
        company_profile     depth-1,6 维度,full 模式抽取
        company_comparison  depth-2,每家 6 维度
-       sector_landscape    depth-2,L1 五条摸底 → 代表公司 → 每家 2 条
+       sector_landscape    depth-2,L1 五条调研 → 代表公司 → 每家 2 条
        value_chain         depth-3,MAX_SEGMENTS=4 × MAX_LEADERS_PER_SEG=2
        theme_analysis      depth-3,MAX_CATEGORIES=4 × MAX_STOCKS_PER_CAT=2
      改了策略参数请同步这里,否则首屏会对面试官说谎。
@@ -1099,7 +1100,7 @@ const GPTResearcher = (() => {
           nodes: [{ name: 'NVIDIA Corporation', tickers: ['NVDA'] }],
         },
       ],
-      total: 6, yield: '1 份完整财务卡片',
+      total: 6, yield: '1 份完整财务指标',
     },
     {
       key: 'company_comparison', cn: '公司对比',
@@ -1113,16 +1114,16 @@ const GPTResearcher = (() => {
             { name: 'Intel Corporation', tickers: ['INTC'] },
           ],
         },
-        { tag: 'L2', desc: '每家 6 个可比维度', count: 18 },
+        { tag: 'L2', desc: '每家公司 6 个可比维度', count: 18 },
       ],
-      total: 19, yield: '3 份对比指标卡片',
+      total: 19, yield: '3 家公司的对比指标',
     },
     {
       key: 'sector_landscape', cn: '行业横切',
       q: '美国电动车电池行业格局',
       levels: [
         {
-          tag: 'L1', desc: '摸行业基本面,抽出代表公司', count: 5,
+          tag: 'L1', desc: '调研行业基本面,识别代表公司', count: 5,
           nodes: [
             { name: 'Tesla', tickers: ['TSLA'] },
             { name: 'Solid Power', tickers: ['SLDP'] },
@@ -1130,17 +1131,17 @@ const GPTResearcher = (() => {
             { name: 'Dragonfly Energy', tickers: ['DFLI'] },
           ],
         },
-        { tag: 'L2', desc: '每家 2 条深挖', count: 8 },
+        { tag: 'L2', desc: '逐家获取财务指标', count: 8 },
       ],
-      total: 13, yield: '4 份 mini 财务卡片',
+      total: 13, yield: '4 家公司的财务指标',
     },
     {
       key: 'value_chain', cn: '产业链纵切',
       q: '美国半导体产业链拆解',
       levels: [
-        { tag: 'L1', desc: '拆出价值链环节', count: 1 },
+        { tag: 'L1', desc: '拆解产业链环节', count: 1 },
         {
-          tag: 'L2', desc: '每个环节找出龙头', count: 12,
+          tag: 'L2', desc: '为每个环节识别龙头公司', count: 12,
           nodes: [
             { name: 'IP & EDA', tickers: ['CDNS', 'SNPS'] },
             { name: '芯片设计', tickers: ['NVDA', 'AMD'] },
@@ -1148,17 +1149,17 @@ const GPTResearcher = (() => {
             { name: '晶圆代工', tickers: ['TSM', 'GFS'] },
           ],
         },
-        { tag: 'L3', desc: '每家龙头 2 条财务', count: 16 },
+        { tag: 'L3', desc: '逐家获取财务指标', count: 16 },
       ],
-      total: 29, yield: '8 份 mini 财务卡片',
+      total: 29, yield: '8 家公司的财务指标',
     },
     {
       key: 'theme_analysis', cn: '主题受益',
       q: '哪些美股受益于 AI 基建',
       levels: [
-        { tag: 'L1', desc: '拆出受益路径', count: 1 },
+        { tag: 'L1', desc: '拆解受益类别', count: 1 },
         {
-          tag: 'L2', desc: '每条路径找最受益标的', count: 12,
+          tag: 'L2', desc: '为每个类别识别代表公司', count: 12,
           nodes: [
             { name: '算力芯片', tickers: ['NVDA', 'AVGO'] },
             { name: '数据中心电力', tickers: ['VRT', 'ETN'] },
@@ -1166,9 +1167,9 @@ const GPTResearcher = (() => {
             { name: '数据中心地产', tickers: ['DLR', 'EQIX'] },
           ],
         },
-        { tag: 'L3', desc: '每只标的 2 条验证', count: 16 },
+        { tag: 'L3', desc: '逐家获取财务指标', count: 16 },
       ],
-      total: 29, yield: '8 份 mini 财务卡片',
+      total: 29, yield: '8 家公司的财务指标',
     },
   ];
 
@@ -1328,11 +1329,43 @@ const GPTResearcher = (() => {
     const blank = () => ({
       label: null,
       subject: null,
-      levels: [],      // {tag, desc, count, nodes:[{name, tickers:[]}]}
+      // {tag, desc, count, done, nodes:[{name,tickers:[]}], companies:[{ticker,ok}]}
+      levels: [],
       stats: [],       // {num, label}
       warnings: [],
       totalQueries: 0,
+      phase: '正在分析问题类型',  // 状态条左侧文字
+      startedAt: null,            // 计时起点(毫秒)
+      finished: false,
+      collapsed: {},              // {L1:true} —— 用户手动折叠的层,render 之间要记住
     });
+
+    /** mm:ss / h:mm:ss */
+    const fmtElapsed = () => {
+      if (!state || state.startedAt == null) return '';
+      const t = Math.floor((Date.now() - state.startedAt) / 1000);
+      const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+      const pad = (x) => String(x).padStart(2, '0');
+      return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+    };
+
+    // 只重写计时数字,不整树重排 —— 每秒 render() 会打断用户的折叠操作与选中态。
+    let tick = null;
+    const startTick = () => {
+      if (tick) return;
+      tick = setInterval(() => {
+        if (!state || state.finished) { clearInterval(tick); tick = null; return; }
+        const el = document.getElementById('planElapsed');
+        if (el) el.textContent = fmtElapsed();
+      }, 1000);
+    };
+
+    /** 折叠 / 展开某一层。折叠状态存在 state 里,避免下次 render 被重置。 */
+    const toggleLevel = (tag) => {
+      if (!state) return;
+      state.collapsed[tag] = !state.collapsed[tag];
+      render();
+    };
 
     const esc = (s) => String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1377,7 +1410,7 @@ const GPTResearcher = (() => {
     const upsertLevel = (tag, patch) => {
       let lv = findLevel(tag);
       if (!lv) {
-        lv = { tag, desc: '', count: null, nodes: [] };
+        lv = { tag, desc: '', count: null, nodes: [], companies: [] };
         state.levels.push(lv);
       }
       Object.assign(lv, patch);
@@ -1400,6 +1433,25 @@ const GPTResearcher = (() => {
       const text = String(rawText || '').replace(/<[^>]*>/g, '').trim();
       if (!text) return false;
       if (!state) state = blank();
+      if (state.startedAt == null) state.startedAt = Date.now();
+
+      // ---------- 旁观:更新阶段与进度,但不接管消息 ----------
+      //
+      // 从「研究计划」出来到报告开始流式输出,中间隔着几分钟到一个多小时
+      // (实测最长 91 分钟)。这段时间里界面上必须有东西在动,否则看着像卡死。
+      // 下面这些消息本身要照常进滚动日志,所以只读不吞。
+      if (/^🔍\s*Running research for/.test(text)) {
+        const cur = [...state.levels].reverse().find((l) => l.count);
+        if (cur) cur.done = Math.min((cur.done || 0) + 1, cur.count);
+        state.phase = cur ? `正在执行 ${cur.tag} 检索` : '正在检索';
+        render();
+        return false;   // 交回滚动日志
+      }
+      if (/Writing report/i.test(text)) {
+        state.phase = '正在撰写报告';
+        render();
+        return false;
+      }
 
       try {
         // ---------- 🎯 路由决策 ----------
@@ -1407,6 +1459,7 @@ const GPTResearcher = (() => {
           const m = body(text, '🎯').match(/L0-A\s*标签[:：]\s*(\S+)/);
           if (!m) return false;
           state.label = m[1];
+          state.phase = '正在准备检索计划';
           render();
           return true;
         }
@@ -1456,21 +1509,13 @@ const GPTResearcher = (() => {
           }
 
           // 每节点龙头:"各环节龙头:IP & EDA[CDNS, SNPS]; ..."
+          // 这是第 2 层的产物,挂到第 2 层而不是并回第 1 层 —— 并回去会让
+          // 第 2、3 层只剩一行标题,面板看着像只展开了一层。
           const leaders = rest.match(/^各(?:环节龙头|类别代表股)[:：]\s*(.+)$/);
           if (leaders) {
             const parsed = parseNodeTickers(leaders[1]);
             if (!parsed.length) return false;
-            // 合并进已有节点(按名字匹配),匹配不上就整体替换
-            const target = [...state.levels].reverse().find((l) => l.nodes.length);
-            if (target) {
-              parsed.forEach((p) => {
-                const hit = target.nodes.find((n) => n.name === p.name);
-                if (hit) hit.tickers = p.tickers;
-              });
-              if (!target.nodes.some((n) => n.tickers.length)) target.nodes = parsed;
-            } else {
-              attachNodes(parsed, 'L1', '节点');
-            }
+            attachNodes(parsed, 'L2', '各环节代表公司');
             render();
             return true;
           }
@@ -1494,6 +1539,7 @@ const GPTResearcher = (() => {
             const desc = lvm[2].replace(/[(（][^)）]*sub-query[^)）]*[)）]/g, '')
               .replace(/[,,]?\s*共\s*\d+\s*条\s*sub-query/, '').trim();
             upsertLevel('L' + lvm[1], { desc, count: n });
+            state.phase = `正在执行 L${lvm[1]} 检索`;
           } else {
             // company_comparison 的 "共 18 条 sub-query(3 家 × 6 维度)"
             upsertLevel('L1', {
@@ -1509,11 +1555,28 @@ const GPTResearcher = (() => {
         // ---------- 🔬 抽取结果 ----------
         if (text.startsWith('🔬')) {
           const rest = body(text, '🔬');
+
+          // 逐家播报:"NVDA 指标已获取" / "LRCX 指标未取到"
+          // 只带代码与成败,不带数字 —— 数字在报告里已经有了,这里重复没有增量;
+          // 而"哪一家没取到"才是读者读报告时会困惑的点。
+          const per = rest.match(/^(\S+)\s*指标(已获取|未取到)$/);
+          if (per) {
+            state.phase = '正在获取财务指标';
+            const lv = upsertLevel('L3', { desc: '逐家获取财务指标' });
+            lv.companies = lv.companies || [];
+            const ok = per[2] === '已获取';
+            const hit = lv.companies.find((c) => c.ticker === per[1]);
+            if (hit) hit.ok = ok;
+            else lv.companies.push({ ticker: per[1], ok });
+            render();
+            return true;
+          }
+
           const m = rest.match(/(\d+)\s*\/\s*(\d+)/);
           if (!m) return false;
           const label = /指标字段/.test(rest) ? '指标字段'
             : /对比指标/.test(rest) ? '对比指标'
-              : '财务卡片';
+              : '财务指标';
           state.stats = state.stats.filter((s) => s.label !== label);
           state.stats.push({ num: `${m[1]}/${m[2]}`, label });
           render();
@@ -1563,23 +1626,66 @@ const GPTResearcher = (() => {
         routeEl.innerHTML = '';
       }
 
-      // --- 树 ---
+      // --- 状态条 ---
+      //
+      // 三个要素缺一不可:当前阶段(在做什么)、进度计数(做到哪了)、
+      // 已用时(秒级跳动 —— 这是"还活着"最直接的证据)。
+      const statusEl = document.getElementById('planStatus');
+      if (statusEl) {
+        const cur = [...state.levels].reverse().find((l) => l.count && (l.done || 0) < l.count);
+        const prog = cur ? `<span class="status-prog">${cur.done || 0}/${cur.count} 条</span>` : '';
+        statusEl.className = 'plan-status' + (state.finished ? ' is-done' : '');
+        statusEl.innerHTML =
+          `<span class="status-dot" aria-hidden="true"></span>` +
+          `<span class="status-phase">${esc(state.phase || '')}</span>` +
+          prog +
+          `<span class="status-elapsed" id="planElapsed">${fmtElapsed()}</span>`;
+      }
+
+      // --- 逐层展开 ---
+      //
+      // 三层各有各的产物,形态不同:
+      //   L1  拆解出的节点(环节 / 类别 / 代表公司)
+      //   L2  各节点下找到的美股公司
+      //   L3  逐家的取数结果 —— 只报成败,不报数字。数字在报告里已经有了,
+      //       这里重复没有增量;而"哪一家没取到"才是读者会困惑的点。
       const treeEl = document.getElementById('planTree');
       treeEl.innerHTML = state.levels.map((lv) => {
-        const nodes = lv.nodes.map((n) => {
+        const collapsed = !!state.collapsed[lv.tag];
+
+        const nodesHtml = lv.nodes.map((n) => {
           const tickers = n.tickers.length
             ? n.tickers.map((t) => `<span class="ticker">${esc(t)}</span>`).join('')
             : `<span class="node-empty">无美股标的</span>`;
           return `<div class="plan-node"><span class="node-name">${esc(n.name)}</span>` +
             `<span class="node-tickers">${tickers}</span></div>`;
         }).join('');
-        return `<div class="plan-level">` +
-          `<div class="level-head">` +
+
+        const companies = lv.companies || [];
+        const compHtml = companies.length
+          ? `<div class="plan-companies">` + companies.map((c) =>
+              `<span class="company-chip${c.ok ? '' : ' is-missing'}">` +
+              `<span class="ticker">${esc(c.ticker)}</span>` +
+              `<i class="fas fa-${c.ok ? 'check' : 'xmark'}"></i>` +
+              (c.ok ? '' : `<span class="chip-note">未取到</span>`) +
+              `</span>`).join('') + `</div>`
+          : '';
+
+        const okCount = companies.filter((c) => c.ok).length;
+        const summary = companies.length ? `${okCount}/${companies.length} 家完成` : '';
+        const body = nodesHtml || compHtml
+          ? `<div class="level-body">${nodesHtml ? `<div class="plan-nodes">${nodesHtml}</div>` : ''}${compHtml}</div>`
+          : '';
+
+        return `<div class="plan-level${collapsed ? ' is-collapsed' : ''}${body ? '' : ' is-bare'}">` +
+          `<button type="button" class="level-head" data-level="${esc(lv.tag)}"` +
+          ` aria-expanded="${collapsed ? 'false' : 'true'}"${body ? '' : ' disabled'}>` +
+          `<i class="fas fa-chevron-down level-caret"></i>` +
           `<span class="level-tag">${esc(lv.tag)}</span>` +
           `<span class="level-desc">${esc(lv.desc || '')}</span>` +
           (lv.count ? `<span class="level-count">${lv.count} 条检索</span>` : '') +
-          `</div>` +
-          (nodes ? `<div class="plan-nodes">${nodes}</div>` : '') +
+          (summary ? `<span class="level-count">${summary}</span>` : '') +
+          `</button>` + body +
           `</div>`;
       }).join('');
 
@@ -1599,6 +1705,7 @@ const GPTResearcher = (() => {
           `<span>${esc(w)}</span></div>`);
       });
       statsEl.innerHTML = parts.join('');
+      if (!state.finished) startTick();
     };
 
     const reset = () => {
@@ -1606,15 +1713,30 @@ const GPTResearcher = (() => {
       const box = document.getElementById('planContainer');
       if (box) {
         box.style.display = 'none';
-        ['planRoute', 'planTree', 'planStats'].forEach((id) => {
+        ['planRoute', 'planStatus', 'planTree', 'planStats'].forEach((id) => {
           const el = document.getElementById(id);
           if (el) el.innerHTML = '';
         });
       }
     };
 
-    return { consume, reset };
+    /** 研究结束:停表、状态条切成完成态 */
+    const finish = () => {
+      if (!state) return;
+      state.finished = true;
+      state.phase = '研究完成';
+      render();
+    };
+
+    return { consume, reset, finish, toggleLevel };
   })();
+
+  // 层标题点击折叠。用事件委托挂在容器上 —— render() 每次重写 innerHTML,
+  // 直接绑在按钮上的监听器会随之丢失。
+  document.addEventListener('click', (e) => {
+    const head = e.target.closest && e.target.closest('.plan-level .level-head[data-level]');
+    if (head && !head.disabled) investmentPlan.toggleLevel(head.dataset.level);
+  });
 
   const addAgentResponse = (data) => {
     // 投研编排信号先给"研究计划"面板消费;解析不了的照旧进滚动日志。

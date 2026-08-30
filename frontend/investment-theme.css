@@ -763,13 +763,53 @@ body.report-done .research-output-container {
     overflow: hidden;
 }
 
+/* 层标题行是 <button>:整行可点折叠,需要重置按钮的默认外观 */
 .level-head {
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 100%;
     padding: 10px 14px;
     background: var(--rd-surface-2);
+    border: none;
     border-bottom: 1px solid var(--rd-border);
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.level-head:hover:not(:disabled) {
+    background: var(--rd-surface-3, var(--rd-surface-2));
+}
+
+/* 没有内容的层(如只声明了检索条数)不提供折叠 */
+.level-head:disabled {
+    cursor: default;
+}
+
+.level-caret {
+    font-size: 10px;
+    color: var(--rd-text-faint);
+    flex: none;
+    transition: transform 0.18s ease;
+}
+
+.plan-level.is-collapsed .level-caret {
+    transform: rotate(-90deg);
+}
+
+.plan-level.is-collapsed .level-body {
+    display: none;
+}
+
+.plan-level.is-bare .level-caret {
+    visibility: hidden;
+}
+
+.plan-level.is-collapsed .level-head {
+    border-bottom: none;
 }
 
 .level-tag {
@@ -1149,4 +1189,107 @@ footer a:hover {
         padding-left: 0;
         border-left: none;
     }
+}
+
+
+/* ============================================================
+   运行状态条
+   从「研究计划」渲染完到报告开始流式输出,中间可能隔一个多小时
+   (实测最长 91 分钟)。这条是那段时间里唯一在动的东西 ——
+   呼吸灯说明进程活着,秒级跳动的计时是最直接的证据。
+   ============================================================ */
+.plan-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0 4px;
+    padding: 9px 14px;
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    background: var(--rd-bg);
+    font-size: 13px;
+}
+
+.plan-status:empty {
+    display: none;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--rd-accent);
+    flex: none;
+    animation: rd-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes rd-breathe {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--rd-accent-glow); }
+    50%      { opacity: 0.35; box-shadow: 0 0 0 4px transparent; }
+}
+
+.status-phase {
+    color: var(--rd-text);
+    flex: 1;
+}
+
+.status-prog,
+.status-elapsed {
+    font-family: var(--rd-mono);
+    font-size: 12px;
+    color: var(--rd-text-faint);
+    flex: none;
+}
+
+.status-elapsed {
+    font-variant-numeric: tabular-nums;  /* 秒数跳动时宽度不抖 */
+    min-width: 44px;
+    text-align: right;
+}
+
+/* 完成态:停止呼吸,颜色转静 */
+.plan-status.is-done .status-dot {
+    animation: none;
+    background: var(--rd-text-faint);
+}
+
+/* ============================================================
+   第 3 层:逐家取数的完成状态
+   只显示代码与成败,不显示数字 —— 数字在报告里已经有了。
+   ============================================================ */
+.plan-companies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+}
+
+.company-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border: 1px solid var(--rd-border);
+    border-radius: 4px;
+    background: var(--rd-surface-2);
+    font-size: 12px;
+}
+
+.company-chip i {
+    font-size: 10px;
+    color: var(--rd-accent);
+}
+
+.company-chip.is-missing {
+    border-style: dashed;
+    opacity: 0.72;
+}
+
+.company-chip.is-missing i {
+    color: var(--rd-warn, #e0a33e);
+}
+
+.chip-note {
+    font-size: 11px;
+    color: var(--rd-text-faint);
 }

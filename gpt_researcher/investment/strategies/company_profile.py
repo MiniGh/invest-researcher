@@ -54,9 +54,9 @@ class CompanyProfileStrategy:
             logger.warning(f"FilingFinder raised: {e}")
 
         if filing:
-            await self._log(f"📑 已取财报:{filing.url}")
+            await self._log(f"📑 已找到财报文件:{filing.url}")
         else:
-            await self._log("⚠️ 未取到财报,L3 将只用 web context")
+            await self._log("⚠️ 未找到财报文件,仅使用网页资料")
 
         metrics_md: str | None = None
         try:
@@ -74,12 +74,12 @@ class CompanyProfileStrategy:
                 if getattr(metrics, f).value is not None
             )
             await self._log(
-                f"🔬 已抽取 {populated}/{len(METRIC_FIELDS)} 个指标字段 → 注入 context"
+                f"🔬 已抽取 {populated}/{len(METRIC_FIELDS)} 个财务指标字段"
             )
             metrics_md = self.extractor.render_as_markdown(metrics)
         except Exception as e:
             logger.warning(f"StructuredExtractor raised: {e}")
-            await self._log("⚠️ 结构化抽取失败,只写原始研究报告")
+            await self._log("⚠️ 财务指标抽取失败,报告中不含结构化指标表")
 
         # 3. 注入 metrics markdown 到 context(让 LLM 在写报告时能看到结构化指标)
         if metrics_md:

@@ -101,7 +101,7 @@ class ValueChainStrategy:
         )
 
         # ---------- Level 1:拆环节 ----------
-        await self._log(f"🔍 Level 1:拆 {industry} 价值链(1 条 bootstrap)")
+        await self._log(f"🔍 Level 1:拆解 {industry} 的产业链环节(1 条检索)")
         level1_ctx = await run_query_batch(
             self.gpt_researcher, self._level1_queries(industry)
         )
@@ -116,7 +116,7 @@ class ValueChainStrategy:
 
         if not segments:
             await self._log(
-                "⚠️ 环节列表解析失败,降级:只用 Level 1 信息出纵切概览(无环节骨架)"
+                "⚠️ 未能识别出产业链环节,改为只输出产业链概览,不做逐环节展开"
             )
             self.gpt_researcher.context = level1_ctx
             return await self.gpt_researcher.write_report(
@@ -124,12 +124,12 @@ class ValueChainStrategy:
             )
 
         await self._log(
-            f"📌 解析到 {len(segments)} 个环节:" + ", ".join(segments)
+            f"📌 识别出 {len(segments)} 个产业链环节:" + ", ".join(segments)
         )
 
         # ---------- Level 2:每环节 3 条 ----------
         await self._log(
-            f"🔍 Level 2:每环节 3 条,共 {3 * len(segments)} 条 sub-query"
+            f"🔍 Level 2:每个环节 3 条,共 {3 * len(segments)} 条检索"
         )
         level2_ctx = await run_query_batch(
             self.gpt_researcher, self._level2_queries(segments, industry)
@@ -158,7 +158,7 @@ class ValueChainStrategy:
 
         if total_leaders == 0:
             # 所有环节都没美股龙头:跳 Level 3,用 L1+L2 出报告(带环节骨架)
-            await self._log("⚠️ 所有环节均无美股龙头,跳 Level 3,只出环节经济性")
+            await self._log("⚠️ 各环节均未找到美股上市公司,跳过 Level 3,仅分析环节经济性")
             merged = (
                 level1_ctx
                 + "\n\n"
@@ -173,7 +173,7 @@ class ValueChainStrategy:
 
         # ---------- Level 3:每 leader 2 条 ----------
         await self._log(
-            f"🔍 Level 3:每龙头 2 条,共 {2 * total_leaders} 条 sub-query"
+            f"🔍 Level 3:每家公司 2 条,共 {2 * total_leaders} 条检索"
         )
         level3_ctx = await run_query_batch(
             self.gpt_researcher, self._level3_queries(seg_leaders, industry)
@@ -196,15 +196,20 @@ class ValueChainStrategy:
                     )
                     seg_blocks.append(self.extractor.render_as_markdown(metrics))
                     cards_done += 1
+                    # 逐家播报,供前端「研究计划」面板显示第 3 层的覆盖情况。
+                    # 只报代码与成败,不报具体数字 —— 数字在报告里已经有了,
+                    # 这里重复一遍没有增量;而「哪一家没取到」才是读者会困惑的点。
+                    await self._log(f"🔬 {leader.ticker or leader.name} 指标已获取")
                 except Exception as e:
                     logger.warning(f"mini extract failed for {leader.name}: {e}")
+                    await self._log(f"🔬 {leader.ticker or leader.name} 指标未取到")
             if seg_blocks:
                 grouped_cards.append(
                     f"### {seg} — representative companies\n\n"
                     + "\n\n".join(seg_blocks)
                 )
         await self._log(
-            f"🔬 已产出 {cards_done}/{total_leaders} 张 mini 卡片(按环节分组)"
+            f"🔬 已获取 {cards_done}/{total_leaders} 家公司的财务指标"
         )
 
         # ---------- 拼总 context(D5:显式环节骨架行 + 分组卡片)----------

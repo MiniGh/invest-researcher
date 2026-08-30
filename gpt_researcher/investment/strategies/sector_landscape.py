@@ -86,7 +86,7 @@ class SectorLandscapeStrategy:
         )
 
         # ---------- Level 1 ----------
-        await self._log(f"🔍 Level 1:摸 {sector} 行业基本面(5 条 sub-query)")
+        await self._log(f"🔍 Level 1:调研 {sector} 行业基本面(5 条检索)")
         level1_ctx = await run_query_batch(
             self.gpt_researcher, self._level1_queries(sector)
         )
@@ -102,7 +102,7 @@ class SectorLandscapeStrategy:
         if not players:
             # 第 3 层:降级,只用 Level 1 出报告
             await self._log(
-                "⚠️ 玩家列表解析失败,降级:只用 Level 1 信息出行业概览(无玩家卡片)"
+                "⚠️ 未能识别出代表公司,改为只输出行业概览,不含公司卡片"
             )
             self.gpt_researcher.context = level1_ctx
             return await self.gpt_researcher.write_report(
@@ -110,13 +110,13 @@ class SectorLandscapeStrategy:
             )
 
         await self._log(
-            f"📌 解析到 {len(players)} 家代表公司:"
+            f"📌 识别出 {len(players)} 家代表公司:"
             + ", ".join(f"{p.name}({p.ticker or '-'})" for p in players)
         )
 
         # ---------- Level 2 ----------
         await self._log(
-            f"🔍 Level 2:每家 2 条,共 {2 * len(players)} 条 sub-query"
+            f"🔍 Level 2:每家公司 2 条,共 {2 * len(players)} 条检索"
         )
         level2_ctx = await run_query_batch(
             self.gpt_researcher, self._level2_queries(players, sector)
@@ -136,7 +136,7 @@ class SectorLandscapeStrategy:
             except Exception as e:
                 logger.warning(f"mini extract failed for {p.name}: {e}")
         await self._log(
-            f"🔬 已为 {len(mini_blocks)}/{len(players)} 家产出 mini 卡片"
+            f"🔬 已获取 {len(mini_blocks)}/{len(players)} 家公司的财务指标"
         )
 
         # ---------- 拼总 context ----------

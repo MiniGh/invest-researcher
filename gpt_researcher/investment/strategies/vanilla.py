@@ -30,7 +30,7 @@ class VanillaStrategy:
         # InvestmentResearcher.__init__ 默认把 retriever 切成 investment_tavily;
         # 兜底路径下需要回到 vanilla(不套白名单,全网搜)
         self.gpt_researcher.cfg.retriever = "tavily"
-        await self._log("ℹ️ 走 其他 兜底:vanilla gpt-researcher,无白名单 / 无子例程")
+        await self._log("ℹ️ 该问题不属于五类投研问题,使用通用研究流程")
 
         await self.gpt_researcher.conduct_research()
         # 不传 custom_prompt:沿用 gpt-researcher 默认报告 prompt

@@ -75,7 +75,7 @@ class CompanyComparisonStrategy:
 
         queries = self._build_queries(companies, shared_industry=None)
         await self._log(
-            f"🔍 共 {len(queries)} 条 sub-query({len(companies)} 家 × 6 维度)"
+            f"🔍 共 {len(queries)} 条检索({len(companies)} 家公司 × 6 个维度)"
         )
         web_ctx = await run_query_batch(self.gpt_researcher, queries)
 
@@ -93,7 +93,7 @@ class CompanyComparisonStrategy:
             except Exception as e:
                 logger.warning(f"full extract failed for {c.name}: {e}")
         await self._log(
-            f"🔬 已为 {len(metric_blocks)}/{len(companies)} 家产出对比指标"
+            f"🔬 已获取 {len(metric_blocks)}/{len(companies)} 家公司的对比指标"
         )
 
         merged = web_ctx

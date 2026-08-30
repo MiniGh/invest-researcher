@@ -161,7 +161,6 @@
                 <p class="hero-tagline">公司 · 行业 · 产业链 基本面研究</p>
 
                 <p class="hero-lede">把一个投研问题,<br>拆成一棵能核查的研究树。</p>
-                <p class="hero-sub">先判断这是哪一类研究,再按对应策略逐层展开检索。每层拆出什么、落到哪几只股票,全程在界面上看得见。</p>
 
                 <!-- ========================================================
                      签名区:5 条研究路径 + 各自的分解树。
@@ -171,7 +170,6 @@
                      里的 HERO_ROUTES。
                      ======================================================== -->
                 <section class="routes" aria-label="五类研究路径">
-                    <p class="routes-eyebrow">它能识别 5 类问题 · 点开看各自怎么拆</p>
                     <div class="route-tabs" id="routeTabs" role="tablist"></div>
                     <div class="route-demo" id="routeDemo"></div>
                 </section>
@@ -331,10 +329,14 @@
              ============================================================ -->
         <div class="margin-div plan-container" id="planContainer" style="display: none;">
             <h2><i class="fas fa-sitemap"></i> 研究计划</h2>
-            <p class="panel-sub">系统对这个问题的判断,以及它准备怎么逐层拆解</p>
 
             <!-- 路由决策:识别为哪一类投研问题 + 研究对象 -->
             <div class="plan-route" id="planRoute"></div>
+
+            <!-- 运行状态:当前阶段 + 进度计数 + 已用时。
+                 研究计划出来之后到报告开始流式输出,中间可能隔一个多小时,
+                 这条是这段时间里唯一在动的东西。 -->
+            <div class="plan-status" id="planStatus"></div>
 
             <!-- 逐层展开:每层的节点,以及节点下挂的美股标的 -->
             <div class="plan-tree" id="planTree"></div>

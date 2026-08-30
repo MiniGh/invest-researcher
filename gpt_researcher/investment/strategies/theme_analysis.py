@@ -97,7 +97,7 @@ class ThemeAnalysisStrategy:
         )
 
         # ---------- Level 1:叙事 + 拆类别 ----------
-        await self._log(f"🔍 Level 1:摸 {theme} 主题叙事(4 条 sub-query)")
+        await self._log(f"🔍 Level 1:调研 {theme} 主题的驱动逻辑(4 条检索)")
         level1_ctx = await run_query_batch(
             self.gpt_researcher, self._level1_queries(theme)
         )
@@ -112,7 +112,7 @@ class ThemeAnalysisStrategy:
 
         if not categories:
             await self._log(
-                "⚠️ 受益类别解析失败,降级:只用 Level 1 信息出主题概览(无类别骨架)"
+                "⚠️ 未能识别出受益类别,改为只输出主题概览,不做分类展开"
             )
             self.gpt_researcher.context = level1_ctx
             return await self.gpt_researcher.write_report(
@@ -120,12 +120,12 @@ class ThemeAnalysisStrategy:
             )
 
         await self._log(
-            f"📌 解析到 {len(categories)} 个受益类别:" + ", ".join(categories)
+            f"📌 识别出 {len(categories)} 个受益类别:" + ", ".join(categories)
         )
 
         # ---------- Level 2:每类 2 条 ----------
         await self._log(
-            f"🔍 Level 2:每类 2 条,共 {2 * len(categories)} 条 sub-query"
+            f"🔍 Level 2:每个类别 2 条,共 {2 * len(categories)} 条检索"
         )
         level2_ctx = await run_query_batch(
             self.gpt_researcher, self._level2_queries(categories, theme)
@@ -153,7 +153,7 @@ class ThemeAnalysisStrategy:
         )
 
         if total_stocks == 0:
-            await self._log("⚠️ 所有类别均无美股代表股,跳 Level 3,只出类别传导机制")
+            await self._log("⚠️ 各类别均未找到美股上市公司,跳过 Level 3,仅分析受益传导机制")
             merged = (
                 level1_ctx
                 + "\n\n"
@@ -168,7 +168,7 @@ class ThemeAnalysisStrategy:
 
         # ---------- Level 3:每股 2 条 ----------
         await self._log(
-            f"🔍 Level 3:每股 2 条,共 {2 * total_stocks} 条 sub-query"
+            f"🔍 Level 3:每家公司 2 条,共 {2 * total_stocks} 条检索"
         )
         level3_ctx = await run_query_batch(
             self.gpt_researcher, self._level3_queries(cat_stocks, theme)
@@ -191,15 +191,20 @@ class ThemeAnalysisStrategy:
                     )
                     cat_blocks.append(self.extractor.render_as_markdown(metrics))
                     cards_done += 1
+                    # 逐家播报,供前端「研究计划」面板显示第 3 层的覆盖情况。
+                    # 只报代码与成败,不报具体数字 —— 数字在报告里已经有了,
+                    # 这里重复一遍没有增量;而「哪一家没取到」才是读者会困惑的点。
+                    await self._log(f"🔬 {stock.ticker or stock.name} 指标已获取")
                 except Exception as e:
                     logger.warning(f"mini extract failed for {stock.name}: {e}")
+                    await self._log(f"🔬 {stock.ticker or stock.name} 指标未取到")
             if cat_blocks:
                 grouped_cards.append(
                     f"### {cat} — most leveraged stocks\n\n"
                     + "\n\n".join(cat_blocks)
                 )
         await self._log(
-            f"🔬 已产出 {cards_done}/{total_stocks} 张 mini 卡片(按类别分组)"
+            f"🔬 已获取 {cards_done}/{total_stocks} 家公司的财务指标"
         )
 
         # ---------- 拼总 context(D5:显式类别骨架行 + 分组卡片)----------
