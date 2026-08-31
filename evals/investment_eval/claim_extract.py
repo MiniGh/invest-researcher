@@ -42,8 +42,13 @@ MAX_CLAIMS_PER_CHUNK = 20
 # 当前 FAST_LLM 正是 DeepSeek-V4-Flash —— 它在"长提示词 + 长 JSON 输出"这种
 # 形态下不可用,并发时整批抽取会全部超时。抽取只是把句子拆开、不做判断,
 # 换个便宜快模型不影响结果质量。
-EXTRACT_MODEL = "Qwen/Qwen3-30B-A3B-Instruct-2507"
-EXTRACT_PROVIDER = "openai"
+# 抽取只是把报告里的数字型断言拆出来,不做质量判断,所以不受"不能与写手同门"
+# 的约束。但硅基流动账户余额为零(连免费档都 402),所以和判定一起搬到 DeepSeek
+# 官方直连。注意:此前实测经硅基流动调 DeepSeek-V4-Flash 抽取一个 1708 字符的
+# chunk 要 175 秒(Qwen3-30B 是 15.7 秒),那是抽取只出 5 条断言的真正原因;
+# 官方直连是否同样慢需要在这轮里看住 CALL_TIMEOUT 的告警。
+EXTRACT_MODEL = "deepseek-v4-flash"
+EXTRACT_PROVIDER = "deepseek"
 # 单次调用的墙钟上限(秒)。实测正常调用 2.7-5.5s,120s 已是极宽裕。
 CALL_TIMEOUT = 120
 _CHUNK_CHARS = 4000

@@ -49,6 +49,18 @@ logger = logging.getLogger(__name__)
 # 96% 与 99% 的差距是 76 题里的 2 题,统计上不显著;而 GLM-5.2 慢 7.7 倍
 # (425 条断言 59 分钟 vs 8 分钟),会让"改模板→重评→对比"这个循环跑不动。
 #
+# 上表三个候选都在硅基流动上。写作模型迁到智谱之后这里也跟着搬了:硅基流动
+# 账户余额为零(连免费档都返回 402),而智谱只供 GLM —— 与写手同门,不能判定。
+# 剩下 DeepSeek 官方直连,它现在与写手不同门,正好可用。
+#
+# 在同一份 76 题验证集上重新选型(DeepSeek 官方直连):
+#   deepseek-v4-flash   97%  (74/76)   59s   抄写降级 0   ← 默认
+#   deepseek-v4-pro     96%  (73/76)  146s   抄写降级 3
+# flash 又准又快,pro 没有任何优势。对比旧的一批:Qwen3.6-35B 96%/82s、
+# GLM-5.2 99%/629s —— flash 用约 1/10 的时间拿到接近 GLM-5.2 的准确率。
+# 分项:altered 25/25(CONTRADICTED 全中)、verbatim 26/26(SUPPORTED 全中)、
+# fabricated 23/25(NOT_FOUND 漏 2)。
+#
 # 想换判定模型直接用 hallucination_report.py 的 -m 传参。(此处曾有一个
 # HIGH_CONFIDENCE_JUDGE_MODEL 常量记录 GLM-5.2,但它没有任何调用方,-m 已经
 # 覆盖了这个用途;写作模型换成 GLM 后它反而变成一个"同门"陷阱,故删除。)
@@ -56,7 +68,8 @@ logger = logging.getLogger(__name__)
 # FORBIDDEN_JUDGE_SUBSTR 随写作模型走:写手是智谱 GLM(default.py 的
 # SMART_LLM),所以 GLM 系不能当判定模型 —— 哪怕 GLM-5.2 准确率最高。
 # 换写作模型时必须同步改这里,否则会退化成模型给自己的输出打分。
-DEFAULT_JUDGE_MODEL = "Qwen/Qwen3.6-35B-A3B"
+JUDGE_PROVIDER = "deepseek"
+DEFAULT_JUDGE_MODEL = "deepseek-v4-flash"
 FORBIDDEN_JUDGE_SUBSTR = ("glm",)
 
 VERDICTS = ("SUPPORTED", "CONTRADICTED", "NOT_FOUND")
@@ -147,7 +160,7 @@ def _build_excerpts(candidates, limit: int = 6) -> tuple[str, list[str]]:
 
 
 async def judge_claim(claim, sources, model: str = DEFAULT_JUDGE_MODEL,
-                      provider: str = "openai", llm_kwargs: dict | None = None) -> Verdict:
+                      provider: str = JUDGE_PROVIDER, llm_kwargs: dict | None = None) -> Verdict:
     """判定单条断言。定位不到候选时直接返回 NOT_FOUND,不调用模型。"""
     text = getattr(claim, "claim", str(claim))
     if any(s in model.lower() for s in FORBIDDEN_JUDGE_SUBSTR):
@@ -224,7 +237,7 @@ async def judge_claim(claim, sources, model: str = DEFAULT_JUDGE_MODEL,
 
 
 async def judge_all(claims, sources, model: str = DEFAULT_JUDGE_MODEL,
-                    provider: str = "openai", llm_kwargs: dict | None = None,
+                    provider: str = JUDGE_PROVIDER, llm_kwargs: dict | None = None,
                     concurrency: int = 8, checkpoint: Path | None = None) -> list[Verdict]:
     """并发判定一批断言,逐条增量落盘。
 

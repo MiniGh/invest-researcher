@@ -27,10 +27,12 @@ from ..artifacts import ResearchArtifact  # noqa: E402
 from ..judge import judge_claim  # noqa: E402
 from .build import load  # noqa: E402
 
+# 候选必须与写作模型不同门(见 judge.py 的 FORBIDDEN_JUDGE_SUBSTR)。写手是
+# 智谱 GLM,所以 GLM 系出局;硅基流动上的 Qwen 因账户余额为零不可用。剩下
+# DeepSeek 官方直连的两个型号。
 CANDIDATES = [
-    "Qwen/Qwen3-30B-A3B-Instruct-2507",
-    "Qwen/Qwen3.6-35B-A3B",
-    "zai-org/GLM-5.2",
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
 ]
 
 PASS_THRESHOLD = 0.85
