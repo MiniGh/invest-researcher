@@ -124,6 +124,10 @@ class Verdict:
     downgraded: bool = False       # 因抄写核验失败而被降级
     candidates: int = 0            # 代码定位找到的候选段数
     model: str = ""
+    # 判定调用本身失败(超时 / 402 / 网络),不是"原文里找不到"。两者都返回
+    # NOT_FOUND,但含义完全不同:前者是工具故障,必须与真实的无据区分开,
+    # 否则一次余额耗尽会伪装成"无据率 90%"。
+    call_failed: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -196,11 +200,11 @@ async def judge_claim(claim, sources, model: str = DEFAULT_JUDGE_MODEL,
     except asyncio.TimeoutError:
         logger.warning("判定超时(%ds)", CALL_TIMEOUT * 2)
         return Verdict(claim=text, verdict="NOT_FOUND", candidates=len(loc.candidates),
-                       model=model, reason="判定超时")
+                       model=model, reason="判定超时", call_failed=True)
     except Exception as e:
         logger.warning("判定调用失败:%s", e)
         return Verdict(claim=text, verdict="NOT_FOUND", candidates=len(loc.candidates),
-                       model=model, reason=f"判定调用失败:{e}")
+                       model=model, reason=f"判定调用失败:{e}", call_failed=True)
 
     try:
         parsed = json_repair.loads(raw)
@@ -264,7 +268,10 @@ async def judge_all(claims, sources, model: str = DEFAULT_JUDGE_MODEL,
         async with sem:
             v = await judge_claim(c, sources, model=model, provider=provider,
                                   llm_kwargs=llm_kwargs)
-        if checkpoint:
+        # 调用失败的结果绝不落盘:它会被下次续跑当成"已判定的 NOT_FOUND"沿用,
+        # 从此再也看不出那一批其实没判过。实测一次 DeepSeek 余额耗尽让 71 条里
+        # 62 条变成假 NOT_FOUND,看板显示无据率 90%,而快照本身没有任何问题。
+        if checkpoint and not v.call_failed:
             async with lock:
                 with checkpoint.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(v.to_dict(), ensure_ascii=False) + "\n")
@@ -275,15 +282,19 @@ async def judge_all(claims, sources, model: str = DEFAULT_JUDGE_MODEL,
 
 def summarize(verdicts: list[Verdict]) -> dict:
     """汇总成幻觉率与无据率。"""
-    n = len(verdicts)
-    if not n:
+    if not verdicts:
         return {"total": 0}
-    cnt = {v: sum(1 for x in verdicts if x.verdict == v) for v in VERDICTS}
+    # 工具故障不参与统计 —— 把它们算进无据会让一次余额耗尽看起来像报告质量崩了。
+    failed = [x for x in verdicts if x.call_failed]
+    scored = [x for x in verdicts if not x.call_failed]
+    n = len(scored)
+    cnt = {v: sum(1 for x in scored if x.verdict == v) for v in VERDICTS}
     return {
         "total": n,
         **cnt,
-        "hallucination_rate": cnt["CONTRADICTED"] / n,
-        "unsupported_rate": cnt["NOT_FOUND"] / n,
-        "downgraded": sum(1 for x in verdicts if x.downgraded),
-        "no_candidate": sum(1 for x in verdicts if x.candidates == 0),
+        "hallucination_rate": (cnt["CONTRADICTED"] / n) if n else None,
+        "unsupported_rate": (cnt["NOT_FOUND"] / n) if n else None,
+        "downgraded": sum(1 for x in scored if x.downgraded),
+        "no_candidate": sum(1 for x in scored if x.candidates == 0),
+        "call_failed": len(failed),
     }

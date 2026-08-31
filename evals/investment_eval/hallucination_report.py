@@ -4,9 +4,9 @@
     # 对 results/ 下全部快照跑
     venv/bin/python -m evals.investment_eval.hallucination_report
 
-    # 只跑一份,并换用高置信度判定模型
+    # 只跑一份,并换判定模型(候选须与写作模型不同门,见 judge.py)
     venv/bin/python -m evals.investment_eval.hallucination_report \
-        -f evals/investment_eval/results/xxx.json -m zai-org/GLM-5.2
+        -f evals/investment_eval/results/xxx.json -m deepseek-v4-pro
 
 判定结果逐条写入 results/<research_id>.verdicts.jsonl —— 中断可续跑,
 换模型重评时删掉对应文件即可。
@@ -62,22 +62,33 @@ def print_board(rows: list[dict]) -> None:
     print("幻觉率")
     print("=" * 96)
     print(f"{'用例':<6}{'类别':<20}{'断言':>6}{'有支撑':>8}{'矛盾':>7}{'无据':>7}"
-          f"{'幻觉率':>9}{'无据率':>9}{'降级':>6}")
+          f"{'幻觉率':>9}{'无据率':>9}{'降级':>6}{'调用失败':>9}")
     print("-" * 96)
     for r in rows:
+        hr = r["hallucination_rate"]
+        ur = r["unsupported_rate"]
         print(f"{str(r.get('case_id') or '—'):<6}{r['label'][:19]:<20}"
               f"{r['total']:>6}{r['SUPPORTED']:>8}{r['CONTRADICTED']:>7}{r['NOT_FOUND']:>7}"
-              f"{r['hallucination_rate']:>8.1%}{r['unsupported_rate']:>9.1%}{r['downgraded']:>6}")
+              f"{('  —  ' if hr is None else f'{hr:.1%}'):>8}"
+              f"{('  —  ' if ur is None else f'{ur:.1%}'):>9}"
+              f"{r['downgraded']:>6}{r.get('call_failed', 0):>9}")
     print("-" * 96)
     tot = sum(r["total"] for r in rows)
     con = sum(r["CONTRADICTED"] for r in rows)
     nf = sum(r["NOT_FOUND"] for r in rows)
+    failed = sum(r.get("call_failed", 0) for r in rows)
     if tot:
         print(f"{'合计':<26}{tot:>6}{tot - con - nf:>8}{con:>7}{nf:>7}"
-              f"{con / tot:>8.1%}{nf / tot:>9.1%}")
+              f"{con / tot:>8.1%}{nf / tot:>9.1%}{'':>6}{failed:>9}")
     print()
     print("幻觉率 = 原文写的与报告写的不一致(改错了)")
     print("无据率 = 原文里根本没有这个数(凭空写,或引错了源)")
+    if failed:
+        # 一次 DeepSeek 余额耗尽曾让 71 条里 62 条判定失败;若把它们算进无据,
+        # 看板会显示"无据率 90%",而快照本身毫无问题。所以必须显式喊出来。
+        print()
+        print(f"⚠️  有 {failed} 条判定调用失败(超时 / 余额 / 网络),已从统计中剔除。")
+        print("    本轮数字建立在不完整的样本上,补齐凭据后重跑再作结论。")
 
 
 def print_contradictions(rows: list[dict], limit: int = 20) -> None:

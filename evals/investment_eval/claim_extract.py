@@ -43,12 +43,24 @@ MAX_CLAIMS_PER_CHUNK = 20
 # 形态下不可用,并发时整批抽取会全部超时。抽取只是把句子拆开、不做判断,
 # 换个便宜快模型不影响结果质量。
 # 抽取只是把报告里的数字型断言拆出来,不做质量判断,所以不受"不能与写手同门"
-# 的约束。但硅基流动账户余额为零(连免费档都 402),所以和判定一起搬到 DeepSeek
-# 官方直连。注意:此前实测经硅基流动调 DeepSeek-V4-Flash 抽取一个 1708 字符的
-# chunk 要 175 秒(Qwen3-30B 是 15.7 秒),那是抽取只出 5 条断言的真正原因;
-# 官方直连是否同样慢需要在这轮里看住 CALL_TIMEOUT 的告警。
+# 的约束(那条约束见 judge.py 的 FORBIDDEN_JUDGE_SUBSTR)。硅基流动账户余额为零
+# (连免费档都 402),所以和判定一起走 DeepSeek 官方直连。
+#
+# EXTRACT_EXTRA_BODY 是这里的关键,不是可选优化。同一个 2053 字符的 chunk 实测:
+#     deepseek-v4-flash  原样                    超时 >190s
+#     deepseek-v4-flash  reasoning_effort=minimal  57.2s
+#     deepseek-v4-flash  thinking=disabled          4.0s   ← 采用
+#     deepseek-v4-pro    原样                     150.5s
+#     GLM-5.3-Flash      原样                    超时 >190s
+# 47 倍差距。原因是思考型模型在出结果前烧掉大量隐藏推理 token,而抽取是机械
+# 拆句,推理没有收益。GLM 同样超时,说明这不是厂商问题。
+#
+# 这里有过一次错误归因:上一版把模型硬编码成 Qwen3-30B-A3B-Instruct-2507,
+# 当时的结论写成"DeepSeek 慢、Qwen 快"—— 真正的变量是那个模型名里的
+# "Instruct"(非思考变体),不是厂商。按厂商归因导致换厂商时又踩了同一个坑。
 EXTRACT_MODEL = "deepseek-v4-flash"
 EXTRACT_PROVIDER = "deepseek"
+EXTRACT_EXTRA_BODY = {"thinking": {"type": "disabled"}}
 # 单次调用的墙钟上限(秒)。实测正常调用 2.7-5.5s,120s 已是极宽裕。
 CALL_TIMEOUT = 120
 _CHUNK_CHARS = 4000
@@ -74,6 +86,17 @@ Do NOT extract:
 Rules:
 - One claim per distinct fact. A sentence stating both a revenue figure AND a
   growth rate yields TWO claims — they can be independently right or wrong.
+- When a sentence gives a headline figure followed by COMPARISON BASELINES,
+  extract ONLY the headline figure. Comparison baselines belong to a different
+  period than the sentence's subject, and splitting them off reliably produces
+  claims whose period is wrong.
+    Text:  "FQ3 2026 revenue was $41.46 billion, versus $23.86 billion the
+            prior quarter and $9.30 billion a year earlier."
+    Right: one claim — "Micron FQ3 2026 revenue was $41.46 billion"
+    Wrong: "FQ3 2026 revenue was $23.86 billion in the prior quarter"
+           "FQ3 2026 revenue was $9.30 billion a year earlier"
+    The two wrong claims read as assertions about FQ3 2026 and will be judged
+    as contradicting the source, even though the report was correct.
 - Each claim must be self-contained: include the company or subject name, the
   metric, the figure, and the period. A reader must be able to check it without
   reading the surrounding text.
@@ -155,7 +178,11 @@ async def _extract_chunk(cfg, text: str, section: str, attempts: int = 2) -> lis
                 temperature=0,
                 llm_provider=EXTRACT_PROVIDER,
                 max_tokens=2000,
-                llm_kwargs={**cfg.llm_kwargs, "timeout": CALL_TIMEOUT},
+                llm_kwargs={
+                    **cfg.llm_kwargs,
+                    "timeout": CALL_TIMEOUT,
+                    "extra_body": EXTRACT_EXTRA_BODY,
+                },
             ),
             timeout=CALL_TIMEOUT + 10,
         )

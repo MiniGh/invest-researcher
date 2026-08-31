@@ -196,3 +196,60 @@ def test_checkpoint_resumes_without_recalling_the_model(tmp_path, monkeypatch):
     out = _run(J.judge_all([CLAIM], SOURCES, checkpoint=cp))
     assert len(out) == 1
     assert out[0].verdict == "SUPPORTED"
+
+
+# ---------------- 判定调用失败必须与"原文无据"区分 ----------------
+#
+# 两者都返回 NOT_FOUND,但含义完全不同。实测一次 DeepSeek 余额耗尽让 71 条里
+# 62 条判定失败,全部作为 NOT_FOUND 写进了 checkpoint,看板显示"无据率 90.1%"
+# —— 而那份快照本身毫无问题。更糟的是续跑会把这些假 NOT_FOUND 当成已判定结果
+# 沿用,从此再也看不出这一批没判过。
+
+def _v(**kw):
+    base = dict(claim="x", verdict="NOT_FOUND")
+    base.update(kw)
+    return J.Verdict(**base)
+
+
+def test_summarize_excludes_call_failures_from_rates():
+    verdicts = [
+        _v(claim="a", verdict="SUPPORTED"),
+        _v(claim="b", verdict="CONTRADICTED"),
+        _v(claim="c", verdict="NOT_FOUND"),
+        _v(claim="d", call_failed=True),
+        _v(claim="e", call_failed=True),
+    ]
+    s = J.summarize(verdicts)
+    assert s["total"] == 3, "调用失败的条目不该进分母"
+    assert s["call_failed"] == 2
+    assert s["unsupported_rate"] == 1 / 3
+    assert s["hallucination_rate"] == 1 / 3
+
+
+def test_summarize_reports_none_when_everything_failed():
+    """全军覆没时给 None 而不是 0% —— 0% 会被读成"表现完美"。"""
+    s = J.summarize([_v(claim="a", call_failed=True), _v(claim="b", call_failed=True)])
+    assert s["total"] == 0
+    assert s["call_failed"] == 2
+    assert s["hallucination_rate"] is None
+    assert s["unsupported_rate"] is None
+
+
+def test_call_failures_are_not_checkpointed(tmp_path, monkeypatch):
+    """失败结果落盘会污染续跑。"""
+    ckpt = tmp_path / "v.jsonl"
+
+    async def fake_judge(claim, sources, **kw):
+        text = getattr(claim, "claim", str(claim))
+        if text == "boom":
+            return _v(claim=text, call_failed=True, reason="判定调用失败:402")
+        return _v(claim=text, verdict="SUPPORTED")
+
+    monkeypatch.setattr(J, "judge_claim", fake_judge)
+    claims = [J.Claim(claim="ok1"), J.Claim(claim="boom"), J.Claim(claim="ok2")] \
+        if hasattr(J, "Claim") else ["ok1", "boom", "ok2"]
+    _run(J.judge_all(claims, [], checkpoint=ckpt))
+
+    written = [l for l in ckpt.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(written) == 2, f"失败结果被写进了 checkpoint:{written}"
+    assert all("boom" not in l for l in written)
