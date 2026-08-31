@@ -4,7 +4,20 @@ DEFAULT_CONFIG: BaseConfig = {
     "RETRIEVER": "tavily",
     # "RETRIEVER": "duckduckgo",
     # "EMBEDDING": "openai:text-embedding-3-small",
-    "EMBEDDING": "custom:Pro/BAAI/bge-m3",
+    # --- 备选:硅基流动上的 bge-m3(账户有余额时可用)---
+    # 注意硅基流动余额为零时,免费档模型也一并返回 402,不是只拦付费模型。
+    # "EMBEDDING": "custom:Pro/BAAI/bge-m3",
+    "EMBEDDING": "zhipuai:embedding-3",
+    # 相似度阈值随 embedding 模型走 —— 不同模型的余弦相似度分布不同,阈值照搬
+    # 会让上下文被过度过滤(取不到料)或过度放行(引入噪声)。0.42 原本是照
+    # bge-m3 定的,换成 embedding-3 后实测(query = "Micron Technology latest
+    # quarterly revenue and HBM market share"):
+    #   0.709  同公司同主题的财报段落
+    #   0.631  同主题的行业格局段落
+    #   0.377  同行业但换了公司(Apple 财报)
+    #   0.367  同领域但换了话题(DRAM 合约价)
+    #   0.180  完全无关(菜谱)
+    # 0.42 落在 0.377 与 0.631 之间的空档里,两侧余量都够,故沿用不改。
     "SIMILARITY_THRESHOLD": 0.42,
     # "FAST_LLM": "openai:gpt-4o-mini",
     # "SMART_LLM": "openai:gpt-4.1",  # Has support for long responses (2k+ words).

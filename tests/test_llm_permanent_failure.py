@@ -96,3 +96,30 @@ def test_zhipuai_missing_key_says_where_to_put_it(monkeypatch):
     monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="ZHIPUAI_API_KEY"):
         GenericLLMProvider.from_provider("zhipuai", model="GLM-5.3-Flash")
+
+
+# ---------------- 智谱 embedding 接线 ----------------
+
+def test_zhipuai_embedding_provider_is_registered():
+    from gpt_researcher.memory.embeddings import _SUPPORTED_PROVIDERS
+    assert "zhipuai" in _SUPPORTED_PROVIDERS
+
+
+def test_zhipuai_embedding_uses_its_own_credentials(monkeypatch):
+    """embedding 也走 ZHIPUAI_* —— 硅基流动余额为零时连免费档模型都返回 402。"""
+    from gpt_researcher.memory import Memory
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "zhipu-test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.siliconflow.cn/v1")
+
+    emb = Memory("zhipuai", "embedding-3", chunk_size=64).get_embeddings()
+    base = getattr(emb, "openai_api_base", None) or str(getattr(emb, "client", ""))
+    assert "bigmodel.cn" in str(base), base
+
+
+def test_zhipuai_embedding_missing_key_says_where_to_put_it(monkeypatch):
+    from gpt_researcher.memory import Memory
+
+    monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="ZHIPUAI_API_KEY"):
+        Memory("zhipuai", "embedding-3")

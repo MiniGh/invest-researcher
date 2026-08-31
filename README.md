@@ -109,7 +109,7 @@ python -m uvicorn main:app --reload
 "FAST_LLM": "zhipuai:GLM-5.3-Flash",       # 分类、摘要等高频调用
 "SMART_LLM": "zhipuai:GLM-5.3-Flash",      # 写报告
 "STRATEGIC_LLM": "zhipuai:GLM-5.3-Flash",  # 复杂推理
-"EMBEDDING": "custom:Pro/BAAI/bge-m3",     # 走硅基流动,与上面三个各用自己的凭据
+"EMBEDDING": "zhipuai:embedding-3",        # 2048 维
 ```
 
 格式是 `供应商:模型名`,改成 `openai:gpt-4o-mini` 之类即可切换。
@@ -118,12 +118,12 @@ python -m uvicorn main:app --reload
 
 | 变量 | 用途 |
 | --- | --- |
-| `ZHIPUAI_API_KEY` | 上面三个 LLM 角色(智谱 BigModel) |
-| `OPENAI_API_KEY` + `OPENAI_BASE_URL` | EMBEDDING,指向硅基流动 |
+| `ZHIPUAI_API_KEY` | LLM 与 EMBEDDING(智谱 BigModel);可选 `ZHIPUAI_BASE_URL` 覆盖接口地址 |
 | `TAVILY_API_KEY` | 检索 |
+| `OPENAI_API_KEY` + `OPENAI_BASE_URL` | 仅 `evals/` 的抽取与判定模型(硅基流动) |
 
-LLM 和 EMBEDDING 刻意分用两套变量:`OPENAI_*` 被 embedding 占着,如果 LLM 也
-复用这两个变量,换 LLM 供应商会连带把 embedding 打断。
+判定模型刻意与写作模型不同厂(见 `evals/investment_eval/judge.py`),所以评估
+链路单独用一套凭据 —— 主流程不需要它。
 
 ## 命令行用法
 

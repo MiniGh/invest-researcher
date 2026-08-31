@@ -44,6 +44,7 @@ _SUPPORTED_PROVIDERS = {
     "nomic",
     "voyageai",
     "dashscope",
+    "zhipuai",
     "custom",
     "bedrock",
     "aimlapi",
@@ -85,6 +86,31 @@ class Memory:
         """
         _embeddings = None
         match embedding_provider:
+            case "zhipuai":
+                # 智谱(BigModel)的 OpenAI 兼容 embedding 接口。
+                #
+                # 与 LLM 共用 ZHIPUAI_API_KEY / ZHIPUAI_BASE_URL,而不是走
+                # "custom" 分支的 OPENAI_*:那套变量原先指向硅基流动,而硅基流动
+                # 账户余额为零时连免费档模型也一并返回 402(实测 BAAI/bge-m3 和
+                # Pro/BAAI/bge-m3 同样被拦),整条压缩链路会挂在这里。
+                from langchain_openai import OpenAIEmbeddings
+
+                api_key = os.environ.get("ZHIPUAI_API_KEY")
+                if not api_key:
+                    raise ValueError(
+                        "缺少 ZHIPUAI_API_KEY。请在项目根目录的 .env 里添加:\n"
+                        "    ZHIPUAI_API_KEY=<你的智谱 key>"
+                    )
+                _embeddings = OpenAIEmbeddings(
+                    model=model,
+                    openai_api_key=api_key,
+                    openai_api_base=os.environ.get(
+                        "ZHIPUAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
+                    ),
+                    # 智谱返回定长向量,不需要 langchain 那套 token 长度预校验
+                    check_embedding_ctx_length=False,
+                    **embedding_kwargs,
+                )
             case "custom":
                 from langchain_openai import OpenAIEmbeddings
 

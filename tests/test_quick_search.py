@@ -6,6 +6,10 @@ import os
 
 class TestQuickSearch(unittest.TestCase):
 
+    # EMBEDDING 现在是 zhipuai:embedding-3,缺 ZHIPUAI_API_KEY 时会明确报错。
+    # 这两个用例本来就不该需要真实凭据(下面 OpenAIEmbeddings 被 patch 掉了),
+    # 但报错发生在构造之前,patch 拦不住 —— 所以补一个假 key。
+    @patch.dict(os.environ, {"ZHIPUAI_API_KEY": "test-key-not-used"})
     @patch('gpt_researcher.agent.get_search_results', new_callable=AsyncMock)
     @patch('gpt_researcher.agent.create_chat_completion', new_callable=AsyncMock)
     @patch('langchain_openai.OpenAIEmbeddings')
@@ -24,6 +28,10 @@ class TestQuickSearch(unittest.TestCase):
         self.assertEqual(results[0]['title'], 'Test Result')
         mock_create_chat.assert_not_called()
 
+    # EMBEDDING 现在是 zhipuai:embedding-3,缺 ZHIPUAI_API_KEY 时会明确报错。
+    # 这两个用例本来就不该需要真实凭据(下面 OpenAIEmbeddings 被 patch 掉了),
+    # 但报错发生在构造之前,patch 拦不住 —— 所以补一个假 key。
+    @patch.dict(os.environ, {"ZHIPUAI_API_KEY": "test-key-not-used"})
     @patch('gpt_researcher.agent.get_search_results', new_callable=AsyncMock)
     @patch('gpt_researcher.agent.create_chat_completion', new_callable=AsyncMock)
     @patch('langchain_openai.OpenAIEmbeddings')
