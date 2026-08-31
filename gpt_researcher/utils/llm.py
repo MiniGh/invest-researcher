@@ -39,6 +39,38 @@ def get_llm(llm_provider: str, **kwargs):
 
 
 # 调用 LLM API（OpenAI/Claude/etc）并处理流式输出
+# 不可重试的失败:凭据 / 计费 / 权限问题。这类错误重试没有意义,而默认 10 次
+# 尝试 + 指数退避会白等 63 秒才放弃 —— 一次深度研究几十次调用就是几十分钟,
+# 且最终仍然失败。实测硅基流动余额耗尽时,整轮评估在无用重试上耗掉大半时间,
+# 而 L0-A 分类只是静默降级到"其他",故障看起来像模型判断变差,不像账户欠费。
+_PERMANENT_STATUS = (401, 402, 403, 404)
+
+
+def _is_permanent_failure(exc: Exception) -> bool:
+    """判断异常是否属于重试也不会好的一类。"""
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if isinstance(status, int) and status in _PERMANENT_STATUS:
+        return True
+    resp = getattr(exc, "response", None)
+    resp_status = getattr(resp, "status_code", None)
+    if isinstance(resp_status, int) and resp_status in _PERMANENT_STATUS:
+        return True
+    text = str(exc)
+    if any(f"Error code: {s}" in text for s in _PERMANENT_STATUS):
+        return True
+    lowered = text.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "balance is insufficient",
+            "insufficient_quota",
+            "invalid api key",
+            "incorrect api key",
+            "authentication",
+        )
+    )
+
+
 async def create_chat_completion(
         messages: list[dict[str, str]],
         model: str | None = None,
@@ -108,6 +140,12 @@ async def create_chat_completion(
             )
         except Exception as exc:
             last_exception = exc
+            if _is_permanent_failure(exc):
+                logging.getLogger(__name__).error(
+                    f"LLM request failed with a non-retryable error, giving up "
+                    f"after attempt {attempt}/{max_attempts}: {exc}"
+                )
+                break
             logging.getLogger(__name__).warning(
                 f"LLM request failed (attempt {attempt}/{max_attempts}): {exc}"
             )

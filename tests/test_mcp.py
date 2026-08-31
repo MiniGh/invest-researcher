@@ -22,6 +22,23 @@ Prerequisites:
    - TAVILY_API_KEY: Your Tavily API key
 """
 
+import os
+import pytest
+
+_REQUIRED_KEYS = ("OPENAI_API_KEY", "TAVILY_API_KEY")
+
+# 这几个是会真打 API 的集成测试(需要 OPENAI_API_KEY,MCP 那两个还要
+# TAVILY_API_KEY / GITHUB_TOKEN)。没有凭据时不该表现为红色失败 —— 那会让整套
+# pytest 在任何干净环境里都是 4 个红。缺 key 就跳过,有 key 时照常跑。
+_MISSING = [k for k in _REQUIRED_KEYS if not os.environ.get(k)]
+if _MISSING:
+    pytest.skip(
+        f"集成测试:需要真实凭据,缺 {', '.join(_MISSING)}",
+        allow_module_level=True,
+    )
+
+
+
 import asyncio
 import os
 import logging
@@ -90,6 +107,7 @@ def setup_environment():
     print("✅ All required environment variables are set")
     return True
 
+@pytest.mark.asyncio
 async def test_web_search_mcp():
     """Test MCP integration with web search (Tavily) for news and general topics."""
     print("\n🌐 Testing Web Search MCP Integration")
@@ -152,6 +170,7 @@ async def test_web_search_mcp():
         logger.exception("Web search MCP test error:")
         return False
 
+@pytest.mark.asyncio
 async def test_github_mcp():
     """Test MCP integration with GitHub for code-related queries."""
     print("\n🐙 Testing GitHub MCP Integration")

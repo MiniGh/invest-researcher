@@ -71,6 +71,17 @@ def _snapshot_config(cfg) -> dict:
     return out
 
 
+def _active_retrievers(gr) -> list[str]:
+    """实际装到实例上的检索器类名。
+
+    只记 cfg.retriever 会说谎:那是**意图**,不是**事实**。曾经因此白跑一轮完整
+    评估 —— 快照里写着 retriever=investment_tavily,而运行时用的是
+    TavilySearch(cfg 改晚了,且 cfg.retrievers 复数优先级更高),数字纹丝不动,
+    只能靠翻日志才发现。之后一律记类名。
+    """
+    return [c.__name__ for c in getattr(gr, "retrievers", [])]
+
+
 async def run_one(case: dict, results_dir: Path) -> ResearchArtifact | None:
     query = case["query"]
     expected = case.get("expected_label")
@@ -83,6 +94,11 @@ async def run_one(case: dict, results_dir: Path) -> ResearchArtifact | None:
         report_source=case.get("report_source", "web"),
         tone=case.get("tone"),
     )
+
+    active = _active_retrievers(researcher.gpt_researcher)
+    logger.info("生效检索器:%s", active or "(空)")
+    if not active:
+        raise RuntimeError("没有任何检索器生效,跑下去只会产出空报告")
 
     try:
         report_md = await researcher.run()
@@ -114,6 +130,7 @@ async def run_one(case: dict, results_dir: Path) -> ResearchArtifact | None:
         unattributed_context=unattributed,
         run_config={
             **_snapshot_config(gr.cfg),
+            "active_retrievers": _active_retrievers(gr),
             "elapsed_sec": round(time.time() - t0, 1),
             "expected_label": expected,
             "case_id": case.get("id"),
