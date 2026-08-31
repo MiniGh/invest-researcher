@@ -67,3 +67,5 @@ prepare/
 
 # 证据快照:内含抓取到的网页正文,不入库(每次跑研究会重新生成)
 /evals/investment_eval/results/*.json
+/evals/investment_eval/results/*.jsonl
+/evals/investment_eval/validation/cases.jsonl
