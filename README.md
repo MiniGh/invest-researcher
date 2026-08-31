@@ -106,13 +106,24 @@ python -m uvicorn main:app --reload
 默认配置在 `gpt_researcher/config/variables/default.py`:
 
 ```python
-"FAST_LLM": "deepseek:deepseek-v4-flash",      # 分类、摘要等高频调用
-"SMART_LLM": "deepseek:deepseek-v4-flash",     # 写报告
-"STRATEGIC_LLM": "deepseek:deepseek-v4-pro",   # 复杂推理
-"EMBEDDING": "custom:Pro/BAAI/bge-m3",
+"FAST_LLM": "zhipuai:GLM-5.3-Flash",       # 分类、摘要等高频调用
+"SMART_LLM": "zhipuai:GLM-5.3-Flash",      # 写报告
+"STRATEGIC_LLM": "zhipuai:GLM-5.3-Flash",  # 复杂推理
+"EMBEDDING": "custom:Pro/BAAI/bge-m3",     # 走硅基流动,与上面三个各用自己的凭据
 ```
 
-改成 `openai:gpt-4o-mini` 之类即可切换供应商,格式是 `供应商:模型名`。
+格式是 `供应商:模型名`,改成 `openai:gpt-4o-mini` 之类即可切换。
+
+对应的凭据(`.env`):
+
+| 变量 | 用途 |
+| --- | --- |
+| `ZHIPUAI_API_KEY` | 上面三个 LLM 角色(智谱 BigModel) |
+| `OPENAI_API_KEY` + `OPENAI_BASE_URL` | EMBEDDING,指向硅基流动 |
+| `TAVILY_API_KEY` | 检索 |
+
+LLM 和 EMBEDDING 刻意分用两套变量:`OPENAI_*` 被 embedding 占着,如果 LLM 也
+复用这两个变量,换 LLM 供应商会连带把 embedding 打断。
 
 ## 命令行用法
 

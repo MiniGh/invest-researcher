@@ -10,19 +10,31 @@ DEFAULT_CONFIG: BaseConfig = {
     # "SMART_LLM": "openai:gpt-4.1",  # Has support for long responses (2k+ words).
     # "STRATEGIC_LLM": "openai:o4-mini",  # Can be used with o1 or o3, please note it will make tasks slower.
     #
-    # --- 备选 A:DeepSeek 官方直连(需要 DEEPSEEK_API_KEY 有余额)---
-    # 与下面启用中的配置是同一批模型,切回来只需把这三行取消注释、注释掉下面三行。
+    # --- 当前启用:智谱(BigModel)直连 ---
+    # 读 ZHIPUAI_API_KEY(base URL 可用 ZHIPUAI_BASE_URL 覆盖,默认
+    # https://open.bigmodel.cn/api/paas/v4)。
+    #
+    # 刻意不复用 OPENAI_API_KEY / OPENAI_BASE_URL:那套变量被 EMBEDDING
+    # (下面的 custom:Pro/BAAI/bge-m3)占着指向硅基流动。共用会互相冲掉 ——
+    # 换 LLM 厂商会连带把 embedding 打断。所以 LLM 走智谱、embedding 留在
+    # 硅基流动,两边各用自己的凭据。
+    #
+    # 注意:evals/ 下的抽取模型与判定模型硬编码 provider="openai",走的仍是
+    # OPENAI_* 那套(硅基流动)—— 这是有意的,判定模型必须与写作模型不同门,
+    # 见 evals/investment_eval/judge.py 的 FORBIDDEN_JUDGE_SUBSTR。
+    "FAST_LLM": "zhipuai:GLM-5.3-Flash",
+    "SMART_LLM": "zhipuai:GLM-5.3-Flash",  # 报告正文由这个角色写
+    "STRATEGIC_LLM": "zhipuai:GLM-5.3-Flash",
+    #
+    # --- 备选 A:经硅基流动调用 DeepSeek(上一版配置)---
+    # "FAST_LLM": "openai:deepseek-ai/DeepSeek-V4-Flash",
+    # "SMART_LLM": "openai:deepseek-ai/DeepSeek-V4-Flash",
+    # "STRATEGIC_LLM": "openai:deepseek-ai/DeepSeek-V4-Pro",
+    #
+    # --- 备选 B:DeepSeek 官方直连(需要 DEEPSEEK_API_KEY 有余额)---
     # "FAST_LLM": "deepseek:deepseek-v4-flash",
     # "SMART_LLM": "deepseek:deepseek-v4-flash",
     # "STRATEGIC_LLM": "deepseek:deepseek-v4-pro",
-    #
-    # --- 当前启用:经硅基流动调用同一批 DeepSeek 模型 ---
-    # 走 openai 兼容接口,读 OPENAI_API_KEY + OPENAI_BASE_URL
-    # (base.py:105 会把 OPENAI_BASE_URL 注入 ChatOpenAI),与 EMBEDDING 共用同一套凭据。
-    # 模型本体与备选 A 相同,因此切换不改变输出行为。
-    "FAST_LLM": "openai:deepseek-ai/DeepSeek-V4-Flash",
-    "SMART_LLM": "openai:deepseek-ai/DeepSeek-V4-Flash",  # Has support for long responses (2k+ words).
-    "STRATEGIC_LLM": "openai:deepseek-ai/DeepSeek-V4-Pro",  # Can be used with o1 or o3, please note it will make tasks slower.
     "FAST_TOKEN_LIMIT": 3000,
     "SMART_TOKEN_LIMIT": 6000,
     "STRATEGIC_TOKEN_LIMIT": 4000,

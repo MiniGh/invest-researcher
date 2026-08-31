@@ -27,6 +27,7 @@ _SUPPORTED_PROVIDERS = {
     "dashscope",
     "xai",
     "deepseek",
+    "zhipuai",
     "litellm",
     "gigachat",
     "openrouter",
@@ -198,6 +199,31 @@ class GenericLLMProvider:
                      openai_api_key=os.environ["DEEPSEEK_API_KEY"],
                      **kwargs
                 )
+        elif provider == "zhipuai":
+            # 智谱(BigModel)的 OpenAI 兼容接口。
+            #
+            # 刻意用独立的 ZHIPUAI_API_KEY 而不是复用 OPENAI_API_KEY /
+            # OPENAI_BASE_URL:后者被 EMBEDDING(custom:Pro/BAAI/bge-m3,
+            # memory/embeddings.py 的 "custom" 分支)占用着指向硅基流动。
+            # 两边共用一套变量会互相冲掉 —— 换 LLM 厂商会连带把 embedding 打断。
+            _check_pkg("langchain_openai")
+            from langchain_openai import ChatOpenAI
+
+            api_key = os.environ.get("ZHIPUAI_API_KEY")
+            if not api_key:
+                raise ValueError(
+                    "缺少 ZHIPUAI_API_KEY。请在项目根目录的 .env 里添加一行:\n"
+                    "    ZHIPUAI_API_KEY=<你的智谱 key>\n"
+                    "注意不要改动 OPENAI_API_KEY / OPENAI_BASE_URL —— 那两个变量"
+                    "供 EMBEDDING 使用,仍指向硅基流动。"
+                )
+            llm = ChatOpenAI(
+                openai_api_base=os.environ.get(
+                    "ZHIPUAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
+                ),
+                openai_api_key=api_key,
+                **kwargs,
+            )
         elif provider == "litellm":
             _check_pkg("langchain_community")
             from langchain_community.chat_models.litellm import ChatLiteLLM

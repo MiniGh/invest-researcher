@@ -39,7 +39,7 @@ from .locate import locate
 
 logger = logging.getLogger(__name__)
 
-# 与写手(DeepSeek)不同源即可。默认取非思考型 —— 思考型会调用自身世界知识
+# 与写手(智谱 GLM)不同源即可。默认取非思考型 —— 思考型会调用自身世界知识
 # 去补全"我记得这个数就是对的",恰恰是这里要避免的。
 #
 # 选型依据(76 题合成验证集,见 validation/):
@@ -48,10 +48,16 @@ logger = logging.getLogger(__name__)
 #   zai-org/GLM-5.2                    99%  629s
 # 96% 与 99% 的差距是 76 题里的 2 题,统计上不显著;而 GLM-5.2 慢 7.7 倍
 # (425 条断言 59 分钟 vs 8 分钟),会让"改模板→重评→对比"这个循环跑不动。
-# 需要更高置信度时显式指定 GLM-5.2。
+#
+# 想换判定模型直接用 hallucination_report.py 的 -m 传参。(此处曾有一个
+# HIGH_CONFIDENCE_JUDGE_MODEL 常量记录 GLM-5.2,但它没有任何调用方,-m 已经
+# 覆盖了这个用途;写作模型换成 GLM 后它反而变成一个"同门"陷阱,故删除。)
+#
+# FORBIDDEN_JUDGE_SUBSTR 随写作模型走:写手是智谱 GLM(default.py 的
+# SMART_LLM),所以 GLM 系不能当判定模型 —— 哪怕 GLM-5.2 准确率最高。
+# 换写作模型时必须同步改这里,否则会退化成模型给自己的输出打分。
 DEFAULT_JUDGE_MODEL = "Qwen/Qwen3.6-35B-A3B"
-HIGH_CONFIDENCE_JUDGE_MODEL = "zai-org/GLM-5.2"
-FORBIDDEN_JUDGE_SUBSTR = ("deepseek",)
+FORBIDDEN_JUDGE_SUBSTR = ("glm",)
 
 VERDICTS = ("SUPPORTED", "CONTRADICTED", "NOT_FOUND")
 

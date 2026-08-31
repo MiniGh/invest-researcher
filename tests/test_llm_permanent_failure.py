@@ -63,3 +63,36 @@ def test_permanent_by_message(text):
 def test_transient_errors_still_retry(exc):
     """限流 / 5xx / 超时必须仍然重试 —— 短路过头会把可恢复的失败变成硬失败。"""
     assert not _is_permanent_failure(exc)
+
+
+# ---------------- 智谱 provider 接线 ----------------
+#
+# 写作模型从硅基流动上的 DeepSeek 换成智谱 GLM。这里锁住两件容易悄悄坏掉的事:
+# provider 名被接受、以及 LLM 不去抢 EMBEDDING 在用的 OPENAI_* 变量。
+
+def test_zhipuai_provider_is_registered():
+    from gpt_researcher.llm_provider.generic.base import _SUPPORTED_PROVIDERS
+    assert "zhipuai" in _SUPPORTED_PROVIDERS
+
+
+def test_zhipuai_uses_its_own_credentials(monkeypatch):
+    """base_url 与 key 都来自 ZHIPUAI_*,不碰 OPENAI_*(那是 EMBEDDING 的)。"""
+    from gpt_researcher.llm_provider.generic.base import GenericLLMProvider
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "zhipu-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "siliconflow-key-for-embedding")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.siliconflow.cn/v1")
+
+    llm = GenericLLMProvider.from_provider("zhipuai", model="GLM-5.3-Flash").llm
+    base = getattr(llm, "openai_api_base", None) or getattr(llm, "base_url", None)
+    assert "bigmodel.cn" in str(base), base
+    assert getattr(llm, "model_name", None) == "GLM-5.3-Flash"
+
+
+def test_zhipuai_missing_key_says_where_to_put_it(monkeypatch):
+    """裸 KeyError 说不清该改哪个文件的哪一行。"""
+    from gpt_researcher.llm_provider.generic.base import GenericLLMProvider
+
+    monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="ZHIPUAI_API_KEY"):
+        GenericLLMProvider.from_provider("zhipuai", model="GLM-5.3-Flash")

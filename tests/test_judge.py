@@ -122,10 +122,22 @@ def test_topic_match_without_number_still_goes_to_the_model(monkeypatch):
 
 # ---------------- 同源禁用 ----------------
 
-def test_same_family_judge_is_rejected():
-    """写手是 DeepSeek,judge 就不能也是 DeepSeek。"""
+@pytest.mark.parametrize("model", [
+    "zai-org/GLM-5.2",
+    "GLM-5.3-Flash",
+    "glm-4-plus",
+])
+def test_same_family_judge_is_rejected(model):
+    """写手换成智谱 GLM 之后,judge 就不能也是 GLM。"""
     with pytest.raises(ValueError, match="同源"):
-        _run(J.judge_claim(CLAIM, SOURCES, model="deepseek-ai/DeepSeek-V4-Flash"))
+        _run(J.judge_claim(CLAIM, SOURCES, model=model))
+
+
+def test_default_judge_is_not_same_family():
+    """换写作模型时最容易漏掉的一处:默认判定模型跟着变成了同门。"""
+    assert not any(
+        s in J.DEFAULT_JUDGE_MODEL.lower() for s in J.FORBIDDEN_JUDGE_SUBSTR
+    )
 
 
 # ---------------- 异常与汇总 ----------------
