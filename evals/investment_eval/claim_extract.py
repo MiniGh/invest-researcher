@@ -32,6 +32,18 @@ from .locate import extract_numbers
 logger = logging.getLogger(__name__)
 
 MAX_CLAIMS_PER_CHUNK = 20
+
+# 抽取模型固定为 Qwen3-30B-Instruct,不跟随 FAST_LLM。
+#
+# 实测同一个 1708 字符的分块、max_tokens=2000:
+#   Qwen/Qwen3-30B-A3B-Instruct-2507    15.7s  ✅
+#   Qwen/Qwen3.6-35B-A3B                81.5s  ✅
+#   deepseek-ai/DeepSeek-V4-Flash      175s 超时 ❌
+# 当前 FAST_LLM 正是 DeepSeek-V4-Flash —— 它在"长提示词 + 长 JSON 输出"这种
+# 形态下不可用,并发时整批抽取会全部超时。抽取只是把句子拆开、不做判断,
+# 换个便宜快模型不影响结果质量。
+EXTRACT_MODEL = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+EXTRACT_PROVIDER = "openai"
 # 单次调用的墙钟上限(秒)。实测正常调用 2.7-5.5s,120s 已是极宽裕。
 CALL_TIMEOUT = 120
 _CHUNK_CHARS = 4000
@@ -120,29 +132,35 @@ def _chunks(text: str, size: int = _CHUNK_CHARS) -> list[str]:
     return out
 
 
-async def _extract_chunk(cfg, text: str, section: str) -> list[Claim]:
+async def _extract_chunk(cfg, text: str, section: str, attempts: int = 2) -> list[Claim]:
+    """抽取单块。超时会重试一次 —— 实测超时来自网络抖动而非模型能力,
+    重试通常就过了;直接跳过会让这一节的断言整段缺失。"""
     prompt = EXTRACT_PROMPT.replace("{TEXT}", text)
-    try:
+    raw = None
+    for _attempt in range(attempts):
+      try:
         # asyncio.wait_for 是硬性上限,不依赖底层客户端的超时行为。
         # 实测并发大请求撞上网络抖动时,单个调用会挂住不返回,而 gpt-researcher
         # 自带的 10 次重试会把 600s 的超时放大到一个多小时;整批抽取因此停滞。
         # 这里宁可丢掉这一块的断言,也不让整轮卡死。
         raw = await asyncio.wait_for(
             create_chat_completion(
-                model=cfg.fast_llm_model,
+                model=EXTRACT_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
-                llm_provider=cfg.fast_llm_provider,
-                max_tokens=cfg.fast_token_limit,
+                llm_provider=EXTRACT_PROVIDER,
+                max_tokens=2000,
                 llm_kwargs={**cfg.llm_kwargs, "timeout": CALL_TIMEOUT},
             ),
-            timeout=CALL_TIMEOUT * 2,
+            timeout=CALL_TIMEOUT + 10,
         )
-    except asyncio.TimeoutError:
-        logger.warning("断言抽取超时(该块跳过,%ds)", CALL_TIMEOUT * 2)
-        return []
-    except Exception as e:
-        logger.warning("断言抽取失败(该块跳过):%s", e)
+        break
+      except asyncio.TimeoutError:
+        logger.warning("断言抽取超时(第 %d 次,%ds)", _attempt + 1, CALL_TIMEOUT)
+      except Exception as e:
+        logger.warning("断言抽取失败(第 %d 次):%s", _attempt + 1, e)
+    if raw is None:
+        logger.warning("断言抽取重试耗尽,该块跳过(%d 字符)", len(text))
         return []
 
     try:
@@ -177,11 +195,14 @@ async def _extract_chunk(cfg, text: str, section: str) -> list[Claim]:
     return out
 
 
-async def extract_claims(cfg, report_md: str, concurrency: int = 6) -> list[Claim]:
+async def extract_claims(cfg, report_md: str, concurrency: int = 2) -> list[Claim]:
     """从一份报告里抽出全部数字型断言。
 
     表格行单独排除:表格里的数字几乎从不带上下文,抽出来的断言不自足
     (只有 "$23.86B" 而没有主语和期间),核对时无从下手。
+
+    并发默认 2:实测并发 6 时 6 块里 5 块超时,而串行单块只要 3.6s。
+    判定环节并发 8 却正常 —— 差别在于抽取的提示词长一个数量级。
     """
     prose = "\n".join(
         l for l in (report_md or "").splitlines() if not l.strip().startswith("|")
