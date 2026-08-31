@@ -24,6 +24,7 @@ from .classifier import ClassificationResult, QueryClassifier
 from .extractor import StructuredExtractor
 from .filing_finder import FilingFinder
 from .orchestrator import Orchestrator
+from .retriever import set_retriever
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class InvestmentResearcher:
         # 切 retriever:整个 wrapper 默认走 investment_tavily;
         # VanillaStrategy 在执行时会临时切回 vanilla "tavily"。
         # 用户显式传 query_domains 仍被 InvestmentTavilySearch 尊重(escape hatch)。
-        self.gpt_researcher.cfg.retriever = "investment_tavily"
+        set_retriever(self.gpt_researcher, "investment_tavily")
 
         if max_search_results is not None:
             self.gpt_researcher.cfg.max_search_results_per_query = int(

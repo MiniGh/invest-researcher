@@ -19,6 +19,7 @@ from ..explicit_research_conductor import (
     ExplicitQueryResearchConductor,
     run_query_batch,
 )
+from ..retriever import set_retriever
 from ..writing_prompts import WRITING_PROMPT_COMPANY_COMPARISON
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class CompanyComparisonStrategy:
                 "company_comparison called with no companies in classification; "
                 "vanilla fallback"
             )
-            self.gpt_researcher.cfg.retriever = "tavily"
+            set_retriever(self.gpt_researcher, "tavily")
             await self.gpt_researcher.conduct_research()
             return await self.gpt_researcher.write_report()
 

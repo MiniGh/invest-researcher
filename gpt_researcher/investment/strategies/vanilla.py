@@ -10,6 +10,7 @@ import logging
 from gpt_researcher.actions import stream_output
 
 from ..classifier import ClassificationResult
+from ..retriever import set_retriever
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class VanillaStrategy:
         # 切回原生 tavily,关掉 per-sub-query L0-B 决策
         # InvestmentResearcher.__init__ 默认把 retriever 切成 investment_tavily;
         # 兜底路径下需要回到 vanilla(不套白名单,全网搜)
-        self.gpt_researcher.cfg.retriever = "tavily"
+        set_retriever(self.gpt_researcher, "tavily")
         await self._log("ℹ️ 该问题不属于五类投研问题,使用通用研究流程")
 
         await self.gpt_researcher.conduct_research()

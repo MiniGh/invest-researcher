@@ -143,3 +143,36 @@ class InvestmentTavilySearch(TavilySearch):
                     )
                     time.sleep(backoff)
         raise last_exc
+
+
+def set_retriever(gpt_researcher, name: str) -> None:
+    """真正把 GPTResearcher 实例的检索器换成 `name`。
+
+    只写 `cfg.retriever` 是无效的,两层原因叠加:
+
+    1. `GPTResearcher.__init__`(agent.py:179)已经把 `get_retrievers()` 的结果
+       冻结在实例属性 `self.retrievers` 上。构造之后再改 cfg 不会触发重新解析,
+       而 InvestmentResearcher 恰好是先构造、后改 cfg。
+    2. 即便改得足够早也没用:`get_retrievers()` 里 `cfg.retrievers`(复数,由
+       `Config.__init__` 从 RETRIEVER 解析而来,默认 `["tavily"]`)的判断在
+       `cfg.retriever`(单数)之前,复数分支先命中就返回了。
+
+    后果是整个 InvestmentTavilySearch —— 包括 L0-B per-sub-query 白名单决策和
+    网页正文抓取 —— 从未执行过,运行日志里一直是 `Active retrievers:
+    ['TavilySearch']`。
+
+    这里直接解析类并覆盖 `retrievers`,不经 `get_retrievers()`,以绕开
+    headers 的优先级;同时把 cfg 的两个字段同步成一致值,让任何读 cfg 的地方
+    (例如证据快照的 run_config)看到的都是真相。
+    """
+    from gpt_researcher.actions.retriever import get_retriever
+
+    retriever_class = get_retriever(name)
+    if retriever_class is None:
+        raise ValueError(f"unknown retriever: {name!r}")
+
+    cfg = gpt_researcher.cfg
+    cfg.retriever = name
+    cfg.retrievers = [name]
+    gpt_researcher.retrievers = [retriever_class]
+    logger.info(f"retriever switched to {retriever_class.__name__} ({name})")

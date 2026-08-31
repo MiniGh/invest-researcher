@@ -107,3 +107,65 @@ def test_whitelist_decision_still_applies():
 def test_explicit_query_domains_win():
     r = InvestmentTavilySearch("Microsoft latest quarterly revenue", query_domains=["sec.gov"])
     assert r.query_domains == ["sec.gov"]
+
+
+# --- set_retriever:检索器是否真的装到了实例上 -----------------------------
+#
+# 上面那批测试全部只测 InvestmentTavilySearch 类本身,所以完全没发现它从未被
+# 装载:InvestmentResearcher 只写了 cfg.retriever,而 GPTResearcher 早在构造
+# 时就把 get_retrievers() 的结果冻结在 self.retrievers 上,且 get_retrievers()
+# 里 cfg.retrievers(复数)优先于 cfg.retriever(单数)。运行日志一直是
+# `Active retrievers: ['TavilySearch']`。以下测试锁的就是这条链。
+
+class _FakeCfg:
+    def __init__(self):
+        self.retriever = "tavily"
+        self.retrievers = ["tavily"]
+
+
+class _FakeResearcher:
+    def __init__(self):
+        self.cfg = _FakeCfg()
+        self.headers = {}
+        self.retrievers = []
+
+
+def test_set_retriever_replaces_live_retriever_list():
+    """光改 cfg 不够 —— 必须覆盖实例上已冻结的 retrievers。"""
+    from gpt_researcher.investment.retriever import set_retriever
+
+    gr = _FakeResearcher()
+    set_retriever(gr, "investment_tavily")
+    assert [c.__name__ for c in gr.retrievers] == ["InvestmentTavilySearch"]
+
+
+def test_set_retriever_syncs_both_cfg_fields():
+    """cfg.retrievers(复数)不同步的话,任何重新解析都会把改动冲掉。"""
+    from gpt_researcher.investment.retriever import set_retriever
+
+    gr = _FakeResearcher()
+    set_retriever(gr, "investment_tavily")
+    assert gr.cfg.retriever == "investment_tavily"
+    assert gr.cfg.retrievers == ["investment_tavily"]
+
+
+def test_set_retriever_can_switch_back_to_vanilla():
+    """VanillaStrategy 的兜底路径要能真的切回原生 tavily。"""
+    from gpt_researcher.investment.retriever import set_retriever
+
+    gr = _FakeResearcher()
+    set_retriever(gr, "investment_tavily")
+    set_retriever(gr, "tavily")
+    assert [c.__name__ for c in gr.retrievers] == ["TavilySearch"]
+    assert gr.cfg.retrievers == ["tavily"]
+
+
+def test_set_retriever_rejects_unknown_name():
+    from gpt_researcher.investment.retriever import set_retriever
+
+    gr = _FakeResearcher()
+    with pytest.raises(ValueError, match="unknown retriever"):
+        set_retriever(gr, "no_such_retriever")
+    # 失败时不应留下半改状态
+    assert [c.__name__ for c in gr.retrievers] == []
+    assert gr.cfg.retriever == "tavily"
