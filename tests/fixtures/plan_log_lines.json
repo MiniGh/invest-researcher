@@ -837,5 +837,22 @@
   "📚 Combined research context: 0 MCP sources, web content",
   "🔬 已产出 8/8 张 mini 卡片(按类别分组)",
   "✍️ Writing report for 'Which US-listed stocks are the biggest beneficiaries of the AI data center power demand theme?'..."
+ ],
+ "current_format": [
+  "🎯 L0-A 标签:theme_analysis",
+  "📌 theme_analysis:AI data center power demand",
+  "🔍 Level 1:调研 AI data center power demand 主题叙事(4 条检索)",
+  "📌 识别出 4 个受益类别:发电设备, 电网设备, 冷却系统, 电力运营商",
+  "🔍 Level 2:每类 2 条检索(共 8 条)",
+  "📌 各类别代表股:发电设备[GEV, CAT]; 电网设备[ETN, PWR]; 冷却系统[无美股]; 电力运营商[VST]",
+  "🔍 Level 3:每股 2 条检索(共 16 条)",
+  "🔬 GEV 指标已获取",
+  "🔬 CAT 指标已获取",
+  "🔬 ETN 指标未取到",
+  "🔬 PWR 指标已获取",
+  "🔬 VST 指标已获取",
+  "🔬 已获取 4/5 家公司的财务指标",
+  "🔍 Running research for 'GE Vernova latest quarterly revenue'",
+  "Writing report..."
  ]
 }

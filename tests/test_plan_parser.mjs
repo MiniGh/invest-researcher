@@ -159,4 +159,33 @@ check('绝大多数日志仍然流向滚动日志', () => {
   assert.ok(passedThrough > consumed * 3, `吞得太多:接管 ${consumed} / 放行 ${passedThrough}`);
 });
 
+
+// ---- 当前措辞的覆盖(修完 38 处措辞之后新增)----------------------------
+// 上面四份 fixture 是**改措辞之前**采集的真实日志,里面还留着 "摸 …"/"拆 …"
+// 那批旧文案。它们对"解析器别被旧日志噎住"仍然有效,但完全测不到当前代码实际
+// 发出的文案 —— 浏览器渲染验证时就因此看到 0 个公司标签,一度以为是功能坏了,
+// 实际只是 fixture 里没有 "🔬 <ticker> 指标已获取" 这类行。这一组按当前措辞写。
+
+check('当前措辞:三层都能解析出来', () => {
+  const { state } = run(fixtures.current_format);
+  assert.equal(state.label, 'theme_analysis');
+  assert.deepEqual(state.levels.map((l) => l.tag), ['L1', 'L2', 'L3']);
+});
+
+check('当前措辞:受益类别落成 L2 的节点', () => {
+  const { state } = run(fixtures.current_format);
+  const l2 = state.levels.find((l) => l.tag === 'L2');
+  assert.equal(l2.nodes.length, 4, `类别数不对:${JSON.stringify(l2.nodes.map((n) => n.name))}`);
+  assert.ok(l2.nodes.some((n) => n.name === '冷却系统'), '无美股的类别被丢掉了');
+});
+
+check('当前措辞:公司标签带成功/失败状态', () => {
+  const { state } = run(fixtures.current_format);
+  const l3 = state.levels.find((l) => l.tag === 'L3');
+  assert.equal(l3.companies.length, 5, `标签数不对:${l3.companies.length}`);
+  const etn = l3.companies.find((c) => c.ticker === 'ETN');
+  assert.ok(etn && etn.ok === false, 'ETN 未取到的状态没有记住');
+  assert.equal(l3.companies.filter((c) => c.ok).length, 4);
+});
+
 console.log(`\n${passed} 项通过\n`);
