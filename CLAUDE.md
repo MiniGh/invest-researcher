@@ -16,6 +16,8 @@ Dependencies can be installed three ways: `pip install -r requirements.txt`, Poe
 - **CLI research:** `python cli.py "<query>" --report_type research_report --tone objective --report_source web`
 - **Run all tests:** `python -m pytest` — pytest config (`pyproject.toml`) sets `testpaths=["tests"]`, `asyncio_mode=strict`, and only collects files matching `test_*.py`.
 - **Run a single test:** `python -m pytest tests/test_mcp.py::test_name`
+- **Frontend tests (no API key, no model calls):** `node tests/test_plan_parser.mjs` (plan-panel log parser) and `node tests/ui_render_check.mjs` (renders the panel in headless chromium; skips if chromium is absent). `tests/fixtures/plan_log_lines.json` holds real run logs — four captured before the wording cleanup, plus `current_format` written against current wording.
+- `tests/conftest.py` puts `backend/` on `sys.path` because `backend/server/app.py` uses top-level `from utils import ...`. Without it three test modules fail at collection and abort the whole run.
 - **Manual test scripts:** Many files in `tests/` use other naming (e.g. `report-types.py`, `vector-store.py`, `research_test.py`, `test-your-llm.py`). These are NOT collected by `pytest` automatically — run them explicitly: `python -m pytest tests/report-types.py`.
 - **Docker:** `docker-compose up` (app on 8000, Next.js on 3000). Tests in container: `docker-compose --profile test run --rm gpt-researcher-tests`.
 - **Multi-agent run:** `python multi_agents/main.py` — reads `multi_agents/task.json`.

@@ -125,6 +125,16 @@ python cli.py "Analyze the value chain of the US semiconductor industry" \
 
 报告会写到 `outputs/` 目录。
 
+## 跑测试
+
+```bash
+python -m pytest                    # Python:174 通过 / 4 跳过(跳过的是需要真实凭据的集成测试)
+node tests/test_plan_parser.mjs     # 前端「研究计划」面板的日志解析器
+node tests/ui_render_check.mjs      # 无头浏览器里渲染该面板(需要 chromium,缺则自动跳过)
+```
+
+后两项不调用任何模型接口,也不需要 API key。
+
 ---
 
 <div align="center">
