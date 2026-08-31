@@ -58,7 +58,13 @@ Key knobs: `RETRIEVER` (comma-separate for hybrid, e.g. `tavily,mcp`), and the t
 ### Report types & evals
 
 - Report types live in `backend/report_type/`: `basic_report/`, `detailed_report/`, `deep_research/`; valid values come from the `ReportType` enum in `gpt_researcher/utils/enum.py`.
-- `evals/` — `simple_evals/` (factuality, adapted from OpenAI simple-evals) and `hallucination_eval/`.
+- `evals/` — `simple_evals/` (factuality, adapted from OpenAI simple-evals) and `hallucination_eval/` (both upstream).
+- `evals/investment_eval/` — **this fork's evaluation stack**, built because the upstream `hallucination_eval` returns a single pass/fail for a whole report and discards its evidence. Full rationale in `evals/investment_eval/README.md`. Pipeline:
+  - `run_research.py` → evidence snapshot (report + every source's raw text + source-attributed context blocks). Snapshots are the input to everything else; they make offline re-scoring, judge swaps, and before/after template comparisons possible.
+  - `report.py` → traceability (link validity / link hit rate / numeric citation coverage). Pure regex, no model calls.
+  - `claim_extract.py` + `locate.py` + `judge.py` → hallucination rate and unsupported rate, per numeric claim.
+  - `validation/` → judge accuracy on a synthetic set with known answers; also used to pick the judge model.
+- Snapshots, verdicts and the generated validation set are gitignored (they embed scraped page text and are regenerable).
 
 ## Agent skills
 
